@@ -8,6 +8,49 @@ app.use(express.json());
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
+// ========== 對話記憶（純記憶體，不用資料庫） ==========
+// 儲存每個使用者的對話歷史
+// 結構：{ "使用者ID": [{ role: "user", content: "..." }, { role: "assistant", content: "..." }] }
+const userConversations = {};
+
+// 設定：每個使用者最多記住 10 組對話（一問一答算一組，所以是 20 則訊息）
+const MAX_HISTORY_MESSAGES = 20;  // 10 組對話 = 20 則訊息
+
+// 取得使用者的對話歷史
+function getConversationHistory(userId) {
+  if (!userConversations[userId]) {
+    userConversations[userId] = [];
+  }
+  return userConversations[userId];
+}
+
+// 加入一則對話到歷史
+function addToHistory(userId, role, content) {
+  const history = getConversationHistory(userId);
+  history.push({ role, content });
+  
+  // 如果超過最大長度，刪除最舊的
+  while (history.length > MAX_HISTORY_MESSAGES) {
+    history.shift();
+  }
+}
+
+// 清除使用者的對話歷史（可選，目前沒用到）
+function clearHistory(userId) {
+  delete userConversations[userId];
+}
+
+// 定期清理記憶體（每天凌晨 4 點清空一次，避免佔用太多記憶體）
+setInterval(() => {
+  const users = Object.keys(userConversations);
+  if (users.length > 0) {
+    console.log(`🧹 定期清理記憶體，清除 ${users.length} 位使用者的對話記錄`);
+    for (const userId of users) {
+      delete userConversations[userId];
+    }
+  }
+}, 24 * 60 * 60 * 1000); // 24 小時
+
 // ========== 從 JSON 檔案載入角色設定 ==========
 let ROLES = {};
 
@@ -25,21 +68,29 @@ function loadRoles() {
 loadRoles();
 setInterval(loadRoles, 60000);
 
-// ========== DeepSeek 呼叫函數 ==========
-async function callDeepSeek(userMessage, systemPrompt) {
-  console.log('📡 呼叫 DeepSeek API...');
+// ========== DeepSeek 呼叫函數（含對話記憶） ==========
+async function callDeepSeekWithMemory(userId, userMessage, systemPrompt) {
+  console.log(`📡 呼叫 DeepSeek API（使用者 ${userId.substring(0, 8)}...，有記憶模式）`);
+  
+  // 1. 取得使用者的對話歷史
+  const history = getConversationHistory(userId);
+  console.log(`   📝 記憶長度：${history.length} 則訊息（最多 ${MAX_HISTORY_MESSAGES} 則）`);
+  
+  // 2. 組成 messages 陣列：systemPrompt + 歷史對話 + 當前訊息
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history,  // 過去的對話
+    { role: 'user', content: userMessage }  // 當前訊息
+  ];
   
   try {
     const response = await axios.post(
       'https://api.deepseek.com/chat/completions',
       {
-        model: 'deepseek-v4-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
+        model: 'deepseek-chat',  // 使用 deepseek-chat 模型
+        messages: messages,
         temperature: 0.8,
-        max_tokens: 800
+        max_tokens: 1000
       },
       {
         headers: {
@@ -51,14 +102,19 @@ async function callDeepSeek(userMessage, systemPrompt) {
     );
     
     const reply = response.data.choices[0].message.content;
-    console.log(`✅ DeepSeek 回覆成功，長度：${reply.length} 字元`);
+    
+    // 3. 儲存到歷史
+    addToHistory(userId, 'user', userMessage);
+    addToHistory(userId, 'assistant', reply);
+    
+    console.log(`   ✅ DeepSeek 回覆成功，新記憶長度：${history.length + 2} 則`);
     return reply;
     
   } catch (error) {
     console.error('❌ DeepSeek API 錯誤：', error.response?.data || error.message);
     
-    if (error.response?.data?.error?.code === 'insufficient_quota') {
-      return 'DeepSeek 額度已用盡，請檢查帳單。';
+    if (error.response?.data?.error?.message) {
+      return `DeepSeek 錯誤：${error.response.data.error.message}`;
     }
     return '抱歉，AI 暫時無法回應，請稍後再試。';
   }
@@ -74,8 +130,6 @@ app.post('/webhook/:role', async (req, res) => {
     return res.status(404).send('Role not found');
   }
   
-  console.log(`🎭 [${new Date().toLocaleString()}] 角色「${roleConfig.name}」被呼叫`);
-  
   const events = req.body.events;
   if (!events || events.length === 0) {
     return res.status(200).send('OK');
@@ -84,10 +138,20 @@ app.post('/webhook/:role', async (req, res) => {
   for (const event of events) {
     const replyToken = event.replyToken;
     const userMessage = event.message?.text;
+    const userId = event.source?.userId;  // LINE 使用者唯一 ID
+    
+    if (!userId) {
+      console.log('⚠️ 無法取得使用者 ID');
+      continue;
+    }
+    
+    console.log(`\n🎭 [${new Date().toLocaleString()}] 角色「${roleConfig.name}」`);
+    console.log(`   👤 使用者 ID：${userId.substring(0, 8)}...`);
     
     if (replyToken && userMessage) {
       try {
-        const aiReply = await callDeepSeek(userMessage, roleConfig.systemPrompt);
+        // 呼叫 DeepSeek（含對話記憶）
+        const aiReply = await callDeepSeekWithMemory(userId, userMessage, roleConfig.systemPrompt);
         
         await axios.post('https://api.line.me/v2/bot/message/reply', {
           replyToken: replyToken,
@@ -99,13 +163,14 @@ app.post('/webhook/:role', async (req, res) => {
           }
         });
         
-        console.log(`   💬 用戶：${userMessage.substring(0, 50)}`);
-        console.log(`   🤖 ${roleConfig.name}：${aiReply.substring(0, 50)}...\n`);
+        console.log(`   💬 用戶：${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}`);
+        console.log(`   🤖 ${roleConfig.name}：${aiReply.substring(0, 50)}${aiReply.length > 50 ? '...' : ''}\n`);
         
       } catch (error) {
         console.error('回覆失敗：', error.response?.data || error.message);
       }
     } else if (replyToken && !userMessage) {
+      // 非文字訊息（貼圖、圖片等）
       await axios.post('https://api.line.me/v2/bot/message/reply', {
         replyToken: replyToken,
         messages: [{ type: 'text', text: roleConfig.welcome }]
@@ -121,12 +186,16 @@ app.post('/webhook/:role', async (req, res) => {
   res.status(200).send('OK');
 });
 
+// 健康檢查端點
 app.get('/', (req, res) => {
   const roles = Object.keys(ROLES);
+  const memoryUsers = Object.keys(userConversations).length;
   res.status(200).send(`
-🤖 LINE Bot 多角色服務運作中（DeepSeek 版）
+🤖 LINE Bot 多角色服務運作中（DeepSeek + 對話記憶）
 
 可用角色：${roles.join(', ')}
+目前記憶中的使用者數量：${memoryUsers}
+每使用者最多記憶：${MAX_HISTORY_MESSAGES} 則訊息（10 組對話）
 
 使用方式：
 /webhook/角色名稱
@@ -137,4 +206,5 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`🚀 伺服器運作中，port: ${port}`);
   console.log(`📋 已載入角色：${Object.keys(ROLES).join(', ')}`);
+  console.log(`🧠 對話記憶模式：每個使用者最多記住 ${MAX_HISTORY_MESSAGES} 則訊息（10 組對話）`);
 });
