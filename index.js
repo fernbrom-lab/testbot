@@ -188,18 +188,7 @@ app.post('/webhook/:role', async (req, res) => {
 
 // 健康檢查端點
 app.get('/', (req, res) => {
-  const roles = Object.keys(ROLES);
-  const memoryUsers = Object.keys(userConversations).length;
-  res.status(200).send(`
-🤖 LINE Bot 多角色服務運作中（DeepSeek + 對話記憶）
-
-可用角色：${roles.join(', ')}
-目前記憶中的使用者數量：${memoryUsers}
-每使用者最多記憶：${MAX_HISTORY_MESSAGES} 則訊息（10 組對話）
-
-使用方式：
-/webhook/角色名稱
-  `);
+  res.status(200).send('別偷看我屁股');
 });
 
 const port = process.env.PORT || 3000;
