@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
 // ========== 從 JSON 檔案載入角色設定 ==========
 let ROLES = {};
@@ -22,52 +22,53 @@ function loadRoles() {
   }
 }
 
-// 啟動時載入一次
 loadRoles();
-
-// 每 60 秒重新載入一次（讓修改 roles.json 後自動生效，不用重啟服務）
 setInterval(loadRoles, 60000);
 
-// ========== AI 呼叫函數 ==========
-async function callGemini(userMessage, systemPrompt) {
+// ========== DeepSeek 呼叫函數 ==========
+async function callDeepSeek(userMessage, systemPrompt) {
+  console.log('📡 呼叫 DeepSeek API...');
+  
   try {
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      'https://api.deepseek.com/chat/completions',
       {
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userMessage }]
-          }
+        model: 'deepseek-v4-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
         ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        generationConfig: {
-          temperature: 0.8,           // 創造力（0-1，越高越有創意）
-          maxOutputTokens: 2000,      // 最大輸出長度（改成 2000）
-          topP: 0.95,                 // 多樣性（可加可不加）
-          topK: 40                    // 候選詞數量（可加可不加）
-        }
+        temperature: 0.8,
+        max_tokens: 1500
       },
       {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
+        timeout: 15000
       }
     );
     
-    return response.data.candidates[0].content.parts[0].text;
+    const reply = response.data.choices[0].message.content;
+    console.log(`✅ DeepSeek 回覆成功，長度：${reply.length} 字元`);
+    return reply;
+    
   } catch (error) {
-    console.error('Gemini API 錯誤：', error.response?.data || error.message);
+    console.error('❌ DeepSeek API 錯誤：', error.response?.data || error.message);
+    
+    if (error.response?.data?.error?.code === 'insufficient_quota') {
+      return 'DeepSeek 額度已用盡，請檢查帳單。';
+    }
     return '抱歉，AI 暫時無法回應，請稍後再試。';
   }
 }
 
-// ========== LINE Webhook（支援動態路徑）==========
+// ========== LINE Webhook ==========
 app.post('/webhook/:role', async (req, res) => {
   const role = req.params.role;
-  
-  // 檢查角色是否存在
   const roleConfig = ROLES[role];
+  
   if (!roleConfig) {
     console.log(`❌ 未知角色：${role}`);
     return res.status(404).send('Role not found');
@@ -86,15 +87,11 @@ app.post('/webhook/:role', async (req, res) => {
     
     if (replyToken && userMessage) {
       try {
-        // 呼叫 Gemini，帶入該角色的系統提示
-        const aiReply = await callGemini(userMessage, roleConfig.systemPrompt);
+        const aiReply = await callDeepSeek(userMessage, roleConfig.systemPrompt);
         
         await axios.post('https://api.line.me/v2/bot/message/reply', {
           replyToken: replyToken,
-          messages: [{
-            type: 'text',
-            text: aiReply
-          }]
+          messages: [{ type: 'text', text: aiReply }]
         }, {
           headers: {
             'Content-Type': 'application/json',
@@ -104,17 +101,14 @@ app.post('/webhook/:role', async (req, res) => {
         
         console.log(`   💬 用戶：${userMessage.substring(0, 50)}`);
         console.log(`   🤖 ${roleConfig.name}：${aiReply.substring(0, 50)}...\n`);
+        
       } catch (error) {
         console.error('回覆失敗：', error.response?.data || error.message);
       }
     } else if (replyToken && !userMessage) {
-      // 如果不是文字訊息（例如貼圖、圖片），回傳歡迎訊息
       await axios.post('https://api.line.me/v2/bot/message/reply', {
         replyToken: replyToken,
-        messages: [{
-          type: 'text',
-          text: roleConfig.welcome
-        }]
+        messages: [{ type: 'text', text: roleConfig.welcome }]
       }, {
         headers: {
           'Content-Type': 'application/json',
@@ -127,26 +121,20 @@ app.post('/webhook/:role', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// 健康檢查端點（列出可用角色）
 app.get('/', (req, res) => {
-  const availableRoles = Object.keys(ROLES);
-  const roleList = availableRoles.map(r => `  - /webhook/${r} (${ROLES[r].name})`).join('\n');
+  const roles = Object.keys(ROLES);
   res.status(200).send(`
-🤖 LINE Bot 多角色服務運作中
+🤖 LINE Bot 多角色服務運作中（DeepSeek 版）
 
-可用角色（5 個試用）：
-${roleList}
+可用角色：${roles.join(', ')}
 
 使用方式：
-將 LINE Bot 的 Webhook URL 設為：
-https://你的服務名稱.onrender.com/webhook/角色名稱
-
-例如：https://你的服務名稱.onrender.com/webhook/fitness
+/webhook/角色名稱
   `);
 });
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`🚀 伺服器運作中，port: ${port}`);
-  console.log(`📋 已載入 ${Object.keys(ROLES).length} 個角色：${Object.keys(ROLES).join(', ')}`);
+  console.log(`📋 已載入角色：${Object.keys(ROLES).join(', ')}`);
 });
