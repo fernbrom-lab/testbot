@@ -1,5 +1,5 @@
 {
-  "name": "line-bot-simple",
+  "name": "line-bot-multi-role",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
