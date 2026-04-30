@@ -44,8 +44,10 @@ async function callGemini(userMessage, systemPrompt) {
           parts: [{ text: systemPrompt }]
         },
         generationConfig: {
-          temperature: 0.8,
-          maxOutputTokens: 500
+          temperature: 0.8,           // 創造力（0-1，越高越有創意）
+          maxOutputTokens: 2000,      // 最大輸出長度（改成 2000）
+          topP: 0.95,                 // 多樣性（可加可不加）
+          topK: 40                    // 候選詞數量（可加可不加）
         }
       },
       {
