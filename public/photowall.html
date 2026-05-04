@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>📸 PhotoWall</title>
+    <title>📸 回憶照片牆</title>
     <style>
         * {
             margin: 0;
@@ -371,7 +371,7 @@
 <body>
     <div class="navbar">
         <div class="navbar-content">
-            <div class="logo"><a href="https://fbtestbot.onrender.com/" style="text-decoration: none;" > 📸 </a></div>
+            <div class="logo">📸 回憶照片牆</div>
             <div class="nav-buttons">
                 <button class="nav-btn active" onclick="showAllPhotos()">🏠 全部</button>
                 <button class="nav-btn" onclick="showUsers()">👥 成員</button>
@@ -414,13 +414,12 @@
     <script>
         let allPhotos = [];
         let currentView = 'all';
-        let pendingDelete = { rowIndex: null, userId: null, refreshCallback: null };
-        let currentUserPhotos = [];
+        let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 
+        // 從 localStorage 讀取 userId（由 /user/:userId 頁面設定）
         let currentUserId = localStorage.getItem('userId');
         if (!currentUserId) {
-            alert('請透過 LINE Bot 提供的「個人相簿連結」進入，即可刪除自己的照片');
-            currentUserId = null;
+            console.log('⚠️ 未登入，只能瀏覽');
         }
 
         const photoModal = document.getElementById('photoModal');
@@ -461,31 +460,38 @@
             return userId;
         }
 
-        function showConfirm(rowIndex, userId, refreshCallback) {
-            pendingDelete = { rowIndex, userId, refreshCallback };
+        // 顯示刪除確認對話框
+        function showConfirm(imageUrl, userId, refreshCallback) {
+            pendingDelete = { imageUrl, userId, refreshCallback };
             confirmOverlay.style.display = 'flex';
         }
 
         function hideConfirm() {
             confirmOverlay.style.display = 'none';
-            pendingDelete = { rowIndex: null, userId: null, refreshCallback: null };
+            pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
         }
 
+        // 執行刪除（用圖片 URL）
         async function executeDelete() {
-            if (!pendingDelete.rowIndex) return;
+            if (!pendingDelete.imageUrl) return;
             
-            const { rowIndex, userId, refreshCallback } = pendingDelete;
+            const { imageUrl, userId, refreshCallback } = pendingDelete;
             hideConfirm();
             
             try {
-                const response = await fetch(`/api/photo/${rowIndex}?userId=${encodeURIComponent(userId)}`, {
+                console.log('🗑️ 刪除照片:', imageUrl);
+                const response = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 
                 if (result.success) {
                     alert('✅ 照片已刪除');
-                    if (refreshCallback) refreshCallback();
+                    if (refreshCallback) {
+                        refreshCallback();
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
                     alert(`❌ 刪除失敗：${result.message}`);
                 }
@@ -495,20 +501,22 @@
             }
         }
 
+        // 渲染全部照片牆
         function renderPhotoGrid(photos) {
             if (!photos || photos.length === 0) {
                 return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
             }
             let html = '<div class="photo-grid">';
-            photos.forEach((photo, index) => {
+            photos.forEach((photo) => {
                 const isOwner = currentUserId && (photo.userId === currentUserId);
                 html += `
-                    <div class="photo-card" style="position: relative;" data-index="${index}" data-userid="${photo.userId}">
-                        ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm(${index}, '${photo.userId}', () => location.reload())">🗑️</button>` : ''}
+                    <div class="photo-card" style="position: relative;" data-url="${photo.imageUrl}">
+                        ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => location.reload())">🗑️</button>` : ''}
                         <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
                             <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                             <div class="photo-overlay">
                                 <div>👤 ${truncateUserId(photo.userId)}</div>
+                                <div>🎭 ${photo.role || '未知'}</div>
                                 <div>❤️ ${formatTime(photo.time)}</div>
                             </div>
                         </div>
@@ -542,6 +550,7 @@
                         <div class="user-card" onclick="showUserPhotos('${user.userId}', '${user.role}')">
                             <img class="user-avatar" src="${user.latestPhoto}" alt="頭像" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${truncateUserId(user.userId)}</div>
+                            <div class="user-role">🎭 ${user.role || '未知角色'}</div>
                             <div class="user-count">📸 ${user.photoCount} 張照片</div>
                         </div>
                     `;
@@ -570,9 +579,10 @@
             }
         }
 
+        // 顯示個人相簿（用於彈窗）
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
-            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 `;
+            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
             
             const grid = document.getElementById('userModalGrid');
             grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
@@ -583,7 +593,6 @@
             try {
                 const response = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
                 const photos = await response.json();
-                currentUserPhotos = photos;
                 
                 if (!photos || photos.length === 0) {
                     grid.innerHTML = '<div class="loading">📸 暫無照片</div>';
@@ -591,11 +600,11 @@
                 }
                 
                 let html = `<div style="display: flex; flex-wrap: wrap; gap: 5px; padding: 10px;">`;
-                photos.forEach((photo, idx) => {
+                photos.forEach((photo) => {
                     const isOwner = currentUserId && (photo.userId === currentUserId);
                     html += `
                         <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;">
-                            ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm(${idx}, '${photo.userId}', () => { showUserPhotos('${userId}', '${role}'); })">🗑️</button>` : ''}
+                            ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => { showUserPhotos('${userId}', '${role}'); })">🗑️</button>` : ''}
                             <div style="width: 100%; height: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
                                 <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
                                      loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
@@ -621,18 +630,17 @@
             const isOwner = currentUserId && (userId === currentUserId);
             modalInfo.innerHTML = `
                 <div>👤 ${truncateUserId(userId)}</div>
+                <div>🎭 ${role || '未知角色'}</div>
                 <div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>
                 ${message ? `<div>💬 ${message}</div>` : ''}
-                ${isOwner ? '<div style="margin-top: 12px;"><button onclick="deleteFromModal()" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>' : ''}
+                ${isOwner ? `<div style="margin-top: 12px;"><button onclick="deleteFromModal('${imageUrl}', '${userId}')" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>` : ''}
             `;
             photoModal.style.display = 'block';
-            
-            window.currentPhotoUserId = userId;
         }
         
-        function deleteFromModal() {
+        function deleteFromModal(imageUrl, userId) {
             photoModal.style.display = 'none';
-            alert('請從「成員」→ 您的個人相簿中找到照片，點擊刪除按鈕');
+            showConfirm(imageUrl, userId, () => window.location.reload());
         }
 
         userModal.onclick = (e) => {
