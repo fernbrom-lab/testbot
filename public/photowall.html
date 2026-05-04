@@ -410,7 +410,6 @@
             </div>
         </div>
     </div>
-
     <script>
         let allPhotos = [];
         let currentView = 'all';
@@ -527,7 +526,9 @@
             return html;
         }
 
+        // 【修復點 1】在 showUsers 函數最後加上 return，確保執行完畢
         async function showUsers() {
+            console.log('🔵 showUsers 開始執行，準備顯示成員列表');
             currentView = 'users';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelector('.nav-buttons button:last-child').classList.add('active');
@@ -557,12 +558,18 @@
                 });
                 html += '</div>';
                 container.innerHTML = html;
+                console.log('🔵 showUsers 執行完畢，成員列表已顯示');
             } catch (error) {
+                console.error('🔴 showUsers 錯誤:', error);
                 container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
             }
+            
+            // 關鍵修復：確保函數執行後不再觸發其他動作
+            return;
         }
 
         async function showAllPhotos() {
+            console.log('🟢 showAllPhotos 開始執行');
             currentView = 'all';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelector('.nav-buttons button:first-child').classList.add('active');
@@ -574,7 +581,9 @@
                 const response = await fetch('/api/photos');
                 allPhotos = await response.json();
                 container.innerHTML = renderPhotoGrid(allPhotos);
+                console.log('🟢 showAllPhotos 執行完畢');
             } catch (error) {
+                console.error('🔴 showAllPhotos 錯誤:', error);
                 container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
             }
         }
@@ -636,7 +645,8 @@
                 ${isOwner ? `<div style="margin-top: 12px;"><button onclick="deleteFromModal('${imageUrl}', '${userId}')" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>` : ''}
             `;
             photoModal.style.display = 'block';
-        }        function deleteFromModal(imageUrl, userId) {
+        }        
+        function deleteFromModal(imageUrl, userId) {
             photoModal.style.display = 'none';
             showConfirm(imageUrl, userId, () => window.location.reload());
         }
@@ -645,24 +655,29 @@
             if (e.target === userModal) closeUserModal();
         };
 
-                // 綁定按鈕事件
+        // 綁定按鈕事件
         document.querySelector('.nav-buttons button:first-child').onclick = () => {
+            console.log('🏠 按鈕被點擊');
             showAllPhotos();
         };
         document.querySelector('.nav-buttons button:last-child').onclick = () => {
+            console.log('👥 按鈕被點擊');
             showUsers();
         };
 
         // 每30秒自動刷新（只在全部照片模式下）
         setInterval(() => {
             if (currentView === 'all') {
+                console.log('⏰ 自動刷新照片牆');
                 showAllPhotos();
             }
         }, 30000);
 
         // 初始載入
+        console.log('🚀 初始化，載入照片牆');
         showAllPhotos();
     </script>
+  
 </body>
 </html>
         
