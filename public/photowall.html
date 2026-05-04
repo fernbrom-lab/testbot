@@ -8,7 +8,6 @@
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
         
-        /* 導航欄 */
         .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
         .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
         .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; }
@@ -17,10 +16,8 @@
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         .nav-btn:hover { background:#f0f0f0; }
         
-        /* 滿版容器 */
         .container { width:100%; margin:0; padding:0; }
         
-        /* 成員網格 */
         .users-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:20px; margin-bottom:40px; padding:20px; }
         .user-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.1); cursor:pointer; transition:transform 0.3s; text-align:center; padding:20px; position:relative; }
         .user-card:hover { transform:translateY(-5px); box-shadow:0 5px 20px rgba(0,0,0,0.15); }
@@ -31,35 +28,30 @@
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 照片網格 - 滿版無間隙，強制正方形 */
-        .photo-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:0; background:#fff; }
+        /* 照片網格 - 強制正方形填滿 */
+        .photo-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:0; background:#fff; }
         .photo-card { position:relative; overflow:hidden; cursor:pointer; background:#f0f0f0; aspect-ratio:1/1; }
         .photo-card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform 0.3s; }
         .photo-card:hover img { transform:scale(1.02); }
-        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent, rgba(0,0,0,0.7)); color:white; padding:40px 12px 12px; opacity:0; transition:opacity 0.3s; }
+        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent, rgba(0,0,0,0.7)); color:white; padding:40px 12px 12px; opacity:0; transition:opacity 0.3s; pointer-events:none; }
         .photo-card:hover .photo-overlay { opacity:1; }
         
-        /* 刪除按鈕 - 僅在個人相簿顯示 */
         .delete-btn { position:absolute; top:10px; right:10px; background:rgba(255,68,68,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:18px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
         
-        /* 設為頭像按鈕 - 僅在個人相簿顯示 */
         .set-avatar-btn { position:absolute; top:10px; right:50px; background:rgba(102,126,234,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
         
-        /* 彈窗 */
         .modal, .user-modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:auto; }
         .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
         .modal-image { width:100%; height:auto; border-radius:10px; }
         .modal-info { color:white; padding:15px; text-align:center; }
         .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
         
-        /* 個人相簿彈窗 */
         .user-modal-header { position:sticky; top:0; background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; gap:15px; z-index:10; }
         .back-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:8px; color:#333; }
         .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
         
-        /* 個人相簿內容 - 手機橫1，電腦橫3 */
         .user-modal-grid { display:flex; flex-direction:column; gap:5px; padding:10px; width:100%; }
         .user-modal-grid > div { width:100%; background:#f0f0f0; border-radius:8px; overflow:hidden; }
         .user-modal-grid img { width:100%; height:auto; display:block; }
