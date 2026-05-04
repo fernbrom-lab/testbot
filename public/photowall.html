@@ -371,7 +371,7 @@
 <body>
     <div class="navbar">
         <div class="navbar-content">
-            <div class="logo"><a href="https://fbtestbot.onrender.com/" style="text-decoration: none;" >📸 PhotoWall</a></div>
+            <div class="logo"><a href="https://fbtestbot.onrender.com/" style="text-decoration: none;" > 📸 </a></div>
             <div class="nav-buttons">
                 <button class="nav-btn active" onclick="showAllPhotos()">🏠 全部</button>
                 <button class="nav-btn" onclick="showUsers()">👥 成員</button>
@@ -509,7 +509,6 @@
                             <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                             <div class="photo-overlay">
                                 <div>👤 ${truncateUserId(photo.userId)}</div>
-                                <div>🎭 ${photo.role || '未知'}</div>
                                 <div>❤️ ${formatTime(photo.time)}</div>
                             </div>
                         </div>
@@ -543,7 +542,6 @@
                         <div class="user-card" onclick="showUserPhotos('${user.userId}', '${user.role}')">
                             <img class="user-avatar" src="${user.latestPhoto}" alt="頭像" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${truncateUserId(user.userId)}</div>
-                            <div class="user-role">🎭 ${user.role || '未知角色'}</div>
                             <div class="user-count">📸 ${user.photoCount} 張照片</div>
                         </div>
                     `;
@@ -574,7 +572,7 @@
 
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
-            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
+            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 `;
             
             const grid = document.getElementById('userModalGrid');
             grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
@@ -623,7 +621,6 @@
             const isOwner = currentUserId && (userId === currentUserId);
             modalInfo.innerHTML = `
                 <div>👤 ${truncateUserId(userId)}</div>
-                <div>🎭 ${role || '未知角色'}</div>
                 <div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>
                 ${message ? `<div>💬 ${message}</div>` : ''}
                 ${isOwner ? '<div style="margin-top: 12px;"><button onclick="deleteFromModal()" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>' : ''}
