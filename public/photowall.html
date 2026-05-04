@@ -18,7 +18,6 @@
             overflow-x: hidden;
         }
 
-        /* 導航欄 */
         .navbar {
             background: white;
             border-bottom: 1px solid #dbdbdb;
@@ -69,14 +68,12 @@
             background: #f0f0f0;
         }
 
-        /* 主容器 */
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
 
-        /* 使用者網格 */
         .users-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -127,7 +124,6 @@
             color: #999;
         }
 
-        /* 照片網格 - 電腦版多排顯示 */
         .photo-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -170,7 +166,6 @@
             opacity: 1;
         }
 
-        /* 照片詳情彈窗 */
         .modal {
             display: none;
             position: fixed;
@@ -180,7 +175,6 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.95);
-            animation: fadeIn 0.3s;
         }
 
         .modal-content {
@@ -213,14 +207,12 @@
             font-size: 40px;
             font-weight: bold;
             cursor: pointer;
-            z-index: 1001;
         }
 
         .close:hover {
             color: #bbb;
         }
 
-        /* 使用者相簿彈窗 - 修復版：可滾動、多排顯示 */
         .user-modal {
             display: none;
             position: fixed;
@@ -231,7 +223,6 @@
             height: 100%;
             background-color: white;
             overflow-y: auto;
-            animation: slideUp 0.3s;
         }
 
         .user-modal-header {
@@ -259,66 +250,6 @@
             font-size: 18px;
         }
 
-        /* 關鍵修復：個人相簿網格 - 電腦版多排 + 可滾動 */
-        .user-modal-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 4px;
-            padding: 4px;
-            max-width: 100%;
-            overflow-x: hidden;
-        }
-        /* 個人相簿彈窗 - 強制多排顯示 */
-.user-modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: white;
-    overflow-y: auto;
-    animation: slideUp 0.3s;
-}
-
-.user-modal-header {
-    position: sticky;
-    top: 0;
-    background: white;
-    border-bottom: 1px solid #dbdbdb;
-    padding: 15px 20px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    z-index: 10;
-}
-
-.user-modal-grid {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 5px;
-    padding: 5px;
-    width: 100%;
-}
-
-/* 響應式：螢幕較小時改為 2 排 */
-@media (max-width: 768px) {
-    .user-modal-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-    }
-}
-
-@media (max-width: 480px) {
-    .user-modal-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-    }
-}
-        /* 確保 body 不會鎖住滾動 */
-        body.modal-open {
-            overflow: hidden;
-        }
-
         .loading {
             text-align: center;
             padding: 50px;
@@ -342,22 +273,8 @@
             z-index: 100;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        /* 平板和手機響應式 */
         @media (max-width: 768px) {
             .photo-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            }
-            .user-modal-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
             .users-grid {
@@ -383,7 +300,6 @@
 
     <button class="back-to-top" onclick="scrollToTop()">↑</button>
 
-    <!-- 照片彈窗 -->
     <div id="photoModal" class="modal">
         <span class="close">&times;</span>
         <div class="modal-content">
@@ -392,13 +308,12 @@
         </div>
     </div>
 
-    <!-- 使用者照片彈窗 -->
     <div id="userModal" class="user-modal">
         <div class="user-modal-header">
-            <button class="back-btn" onclick="closeUserModal()">←</button>
+            <button class="back-btn" onclick="closeUserModal()">← 返回</button>
             <div class="user-modal-title" id="userModalTitle"></div>
         </div>
-        <div class="user-modal-grid" id="userModalGrid"></div>
+        <div id="userModalGrid"></div>
     </div>
 
     <script>
@@ -411,17 +326,11 @@
         const userModal = document.getElementById('userModal');
         const backToTop = document.querySelector('.back-to-top');
 
-        // 關閉照片彈窗
         document.querySelector('.close').onclick = () => photoModal.style.display = "none";
         photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
 
-        // 滾動監聽
         window.onscroll = () => {
-            if (window.scrollY > 300) {
-                backToTop.style.display = 'block';
-            } else {
-                backToTop.style.display = 'none';
-            }
+            backToTop.style.display = window.scrollY > 300 ? 'block' : 'none';
         };
 
         function scrollToTop() {
@@ -434,7 +343,6 @@
             const now = new Date();
             const diff = now - date;
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            
             if (days === 0) return '今天';
             if (days === 1) return '昨天';
             if (days < 7) return `${days}天前`;
@@ -448,16 +356,14 @@
             return userId;
         }
 
-        // 顯示全部照片
         function renderPhotoGrid(photos) {
             if (!photos || photos.length === 0) {
                 return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
             }
-            
             let html = '<div class="photo-grid">';
             photos.forEach(photo => {
                 html += `
-                    <div class="photo-card" onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${photo.message?.replace(/'/g, "\\'") || ''}')">
+                    <div class="photo-card" onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
                         <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                         <div class="photo-overlay">
                             <div>👤 ${truncateUserId(photo.userId)}</div>
@@ -471,7 +377,6 @@
             return html;
         }
 
-        // 顯示成員列表
         async function showUsers() {
             currentView = 'users';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -507,7 +412,6 @@
             }
         }
 
-        // 顯示全部照片
         async function showAllPhotos() {
             currentView = 'all';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -525,47 +429,45 @@
             }
         }
 
-        // 顯示特定使用者的照片（修復版：確保多排顯示 + 可滾動）
-    // 顯示特定使用者的照片（強制多排網格版）
-async function showUserPhotos(userId, role) {
-    const modalTitle = document.getElementById('userModalTitle');
-    modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
-    
-    const grid = document.getElementById('userModalGrid');
-    grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
-    
-    userModal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-    
-    try {
-        const response = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos = await response.json();
-        
-        if (!photos || photos.length === 0) {
-            grid.innerHTML = '<div class="loading">📸 暫無照片</div>';
-            return;
+        // 個人相簿：強制 3 排網格，佔滿版面
+        async function showUserPhotos(userId, role) {
+            const modalTitle = document.getElementById('userModalTitle');
+            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
+            
+            const grid = document.getElementById('userModalGrid');
+            grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
+            
+            userModal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+            
+            try {
+                const response = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+                const photos = await response.json();
+                
+                if (!photos || photos.length === 0) {
+                    grid.innerHTML = '<div class="loading">📸 暫無照片</div>';
+                    return;
+                }
+                
+                // 使用 flex 配合百分比寬度，讓照片填滿版面
+                let html = `<div style="display: flex; flex-wrap: wrap; gap: 5px; padding: 10px;">`;
+                photos.forEach(photo => {
+                    html += `
+                        <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; cursor: pointer; background: #f0f0f0; border-radius: 8px;" 
+                             onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
+                            <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
+                                 loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                grid.innerHTML = html;
+                
+            } catch (error) {
+                console.error('載入照片失敗：', error);
+                grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+            }
         }
-        
-        // 強制使用 grid 多排顯示，內聯樣式確保不被覆蓋
-        let html = `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 5px; width: 100%;">`;
-        
-        photos.forEach(photo => {
-            html += `
-                <div style="aspect-ratio: 1 / 1; overflow: hidden; cursor: pointer; background: #f0f0f0; border-radius: 8px;" 
-                     onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${photo.message?.replace(/'/g, "\\'") || ''}')">
-                    <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
-                         loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                </div>
-            `;
-        });
-        html += '</div>';
-        grid.innerHTML = html;
-        
-    } catch (error) {
-        console.error('載入照片失敗：', error);
-        grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
-    }
-}
 
         function closeUserModal() {
             userModal.style.display = 'none';
@@ -587,12 +489,10 @@ async function showUserPhotos(userId, role) {
             if (e.target === userModal) closeUserModal();
         };
 
-        // 定時重新整理
         setInterval(() => {
             if (currentView === 'all') showAllPhotos();
         }, 30000);
 
-        // 初始載入
         showAllPhotos();
     </script>
 </body>
