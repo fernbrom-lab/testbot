@@ -201,7 +201,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName}的相簿 🎭'}`;
+    modalTitle.innerHTML = `👤${titleName}的相簿 🎭`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
@@ -259,7 +259,7 @@ usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
 newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
 
-setInterval(()=>{ if(currentView==='all') showAllPhotos(); },120000);
+setInterval(()=>{ if(currentView==='all') showAllPhotos(); },60000);
 showAllPhotos();
 </script>
 </body>
