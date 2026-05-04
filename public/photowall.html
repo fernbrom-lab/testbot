@@ -371,10 +371,10 @@
 <body>
     <div class="navbar">
         <div class="navbar-content">
-            <div class="logo"><a href="https://fbtestbot.onrender.com/" style="text-decoration: none;"> 📸 </div>
+            <div class="logo"><a href="https://fbtestbot.onrender.com/" style="text-decoration: none;">📸</a></div>
             <div class="nav-buttons">
-                <button class="nav-btn active"> 🏠 </button>
-                <button class="nav-btn" > 👥 </button>
+                <button class="nav-btn active">🏠</button>
+                <button class="nav-btn">👥</button>
             </div>
         </div>
     </div>
@@ -410,12 +410,12 @@
             </div>
         </div>
     </div>
+
     <script>
         let allPhotos = [];
         let currentView = 'all';
         let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 
-        // 從 localStorage 讀取 userId（由 /user/:userId 頁面設定）
         let currentUserId = localStorage.getItem('userId');
         if (!currentUserId) {
             console.log('⚠️ 未登入，只能瀏覽');
@@ -459,7 +459,6 @@
             return userId;
         }
 
-        // 顯示刪除確認對話框
         function showConfirm(imageUrl, userId, refreshCallback) {
             pendingDelete = { imageUrl, userId, refreshCallback };
             confirmOverlay.style.display = 'flex';
@@ -470,7 +469,7 @@
             pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
         }
 
-        // 執行刪除（用圖片 URL）
+        // 執行刪除 - 直接移除 DOM 元素，不重新載入
         async function executeDelete() {
             if (!pendingDelete.imageUrl) return;
             
@@ -485,18 +484,24 @@
                 const result = await response.json();
                 
                 if (result.success) {
-    alert('✅ 照片已刪除');
-    if (refreshCallback) {
-        refreshCallback();
-    } else {
-        // 不重新載入，只刷新當前視圖
-        if (currentView === 'all') {
-            showAllPhotos();
-        } else if (currentView === 'users') {
-            showUsers();
-        }
-    }
-} else {
+                    alert('✅ 照片已刪除');
+                    
+                    // 直接從 DOM 中移除該照片元素
+                    const photoCard = document.querySelector(`.photo-card[data-url="${imageUrl}"]`);
+                    if (photoCard) {
+                        photoCard.remove();
+                    }
+                    
+                    // 同時從 userModal 中移除
+                    const userModalPhoto = document.querySelector(`.user-modal-grid div[data-url="${imageUrl}"]`);
+                    if (userModalPhoto) {
+                        userModalPhoto.remove();
+                    }
+                    
+                    if (refreshCallback) {
+                        refreshCallback();
+                    }
+                } else {
                     alert(`❌ 刪除失敗：${result.message}`);
                 }
             } catch (error) {
@@ -505,7 +510,6 @@
             }
         }
 
-        // 渲染全部照片牆
         function renderPhotoGrid(photos) {
             if (!photos || photos.length === 0) {
                 return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
@@ -515,7 +519,7 @@
                 const isOwner = currentUserId && (photo.userId === currentUserId);
                 html += `
                     <div class="photo-card" style="position: relative;" data-url="${photo.imageUrl}">
-                        ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => location.reload())">🗑️</button>` : ''}
+                        ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', null)">🗑️</button>` : ''}
                         <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
                             <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                             <div class="photo-overlay">
@@ -531,9 +535,8 @@
             return html;
         }
 
-        // 【修復點 1】在 showUsers 函數最後加上 return，確保執行完畢
         async function showUsers() {
-            console.log('🔵 showUsers 開始執行，準備顯示成員列表');
+            console.log('🔵 showUsers 開始執行');
             currentView = 'users';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelector('.nav-buttons button:last-child').classList.add('active');
@@ -563,14 +566,11 @@
                 });
                 html += '</div>';
                 container.innerHTML = html;
-                console.log('🔵 showUsers 執行完畢，成員列表已顯示');
+                console.log('🔵 showUsers 執行完畢');
             } catch (error) {
                 console.error('🔴 showUsers 錯誤:', error);
                 container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
             }
-            
-            // 關鍵修復：確保函數執行後不再觸發其他動作
-            return;
         }
 
         async function showAllPhotos() {
@@ -593,7 +593,6 @@
             }
         }
 
-        // 顯示個人相簿（用於彈窗）
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
             modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
@@ -617,7 +616,7 @@
                 photos.forEach((photo) => {
                     const isOwner = currentUserId && (photo.userId === currentUserId);
                     html += `
-                        <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;">
+                        <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;" data-url="${photo.imageUrl}">
                             ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => { showUserPhotos('${userId}', '${role}'); })">🗑️</button>` : ''}
                             <div style="width: 100%; height: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
                                 <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
@@ -647,22 +646,20 @@
                 <div>🎭 ${role || '未知角色'}</div>
                 <div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>
                 ${message ? `<div>💬 ${message}</div>` : ''}
-                ${isOwner ? `<div style="margin-top: 12px;"><button onclick="deleteFromModal('${imageUrl}', '${userId}')" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>` : ''}
+                ${isOwner ? `<div style="margin-top: 12px;"><button onclick="deleteCurrentPhoto('${imageUrl}', '${userId}')" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>` : ''}
             `;
             photoModal.style.display = 'block';
-        }        
-        function deleteFromModal(imageUrl, userId) {
-    photoModal.style.display = 'none';
-    showConfirm(imageUrl, userId, () => {
-        if (currentView === 'all') {
-            showAllPhotos();
-        } else if (currentView === 'users') {
-            showUsers();
         }
-    });
-}function deleteFromModal(imageUrl, userId) {
+        
+        function deleteCurrentPhoto(imageUrl, userId) {
             photoModal.style.display = 'none';
-            showConfirm(imageUrl, userId, () => window.location.reload());
+            showConfirm(imageUrl, userId, null);
+            setTimeout(() => {
+                const photoCard = document.querySelector(`.photo-card[data-url="${imageUrl}"]`);
+                if (photoCard) photoCard.remove();
+                const userModalPhoto = document.querySelector(`.user-modal-grid div[data-url="${imageUrl}"]`);
+                if (userModalPhoto) userModalPhoto.remove();
+            }, 100);
         }
 
         userModal.onclick = (e) => {
@@ -670,30 +667,26 @@
         };
 
         // 綁定按鈕事件
-       // 綁定按鈕事件（強化版）
-const allBtnElement = document.querySelector('.nav-buttons button:first-child');
-const usersBtnElement = document.querySelector('.nav-buttons button:last-child');
+        const allBtnElement = document.querySelector('.nav-buttons button:first-child');
+        const usersBtnElement = document.querySelector('.nav-buttons button:last-child');
 
-// 重新建立按鈕，確保事件不會衝突
-const newAllBtn = allBtnElement.cloneNode(true);
-const newUsersBtn = usersBtnElement.cloneNode(true);
-allBtnElement.parentNode.replaceChild(newAllBtn, allBtnElement);
-usersBtnElement.parentNode.replaceChild(newUsersBtn, usersBtnElement);
+        const newAllBtn = allBtnElement.cloneNode(true);
+        const newUsersBtn = usersBtnElement.cloneNode(true);
+        allBtnElement.parentNode.replaceChild(newAllBtn, allBtnElement);
+        usersBtnElement.parentNode.replaceChild(newUsersBtn, usersBtnElement);
 
-// 綁定事件
-newAllBtn.onclick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showAllPhotos();
-};
+        newAllBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showAllPhotos();
+        };
 
-newUsersBtn.onclick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showUsers();
-};
+        newUsersBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showUsers();
+        };
 
-        // 每30秒自動刷新（只在全部照片模式下）
         setInterval(() => {
             if (currentView === 'all') {
                 console.log('⏰ 自動刷新照片牆');
@@ -701,11 +694,8 @@ newUsersBtn.onclick = (e) => {
             }
         }, 30000);
 
-        // 初始載入
         console.log('🚀 初始化，載入照片牆');
         showAllPhotos();
     </script>
-  
 </body>
 </html>
-        
