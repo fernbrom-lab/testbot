@@ -636,9 +636,7 @@
                 ${isOwner ? `<div style="margin-top: 12px;"><button onclick="deleteFromModal('${imageUrl}', '${userId}')" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>` : ''}
             `;
             photoModal.style.display = 'block';
-        }
-        
-        function deleteFromModal(imageUrl, userId) {
+        }        function deleteFromModal(imageUrl, userId) {
             photoModal.style.display = 'none';
             showConfirm(imageUrl, userId, () => window.location.reload());
         }
@@ -647,11 +645,18 @@
             if (e.target === userModal) closeUserModal();
         };
 
+        // 綁定按鈕事件
+        document.querySelector('.nav-buttons button:first-child').onclick = showAllPhotos;
+        document.querySelector('.nav-buttons button:last-child').onclick = showUsers;
+
+        // 每30秒自動刷新（只保留一個）
         setInterval(() => {
             if (currentView === 'all') showAllPhotos();
         }, 30000);
 
+        // 初始載入（只呼叫一次）
         showAllPhotos();
     </script>
 </body>
 </html>
+        
