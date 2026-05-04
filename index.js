@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
+const cloudinary = require('cloudinary').v2;
 
 const app = express();
 app.use(express.json());
@@ -11,6 +12,13 @@ app.use(express.static('public'));
 
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+
+// ========== Cloudinary 設定 ==========
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // ========== Google Sheets 設定 ==========
 let googleSheetReady = false;
@@ -21,8 +29,13 @@ async function initGoogleSheets() {
     console.log('🔧 開始初始化 Google Sheets...');
     
     const client_email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const private_key = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    const private_key = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const sheetId = process.env.GOOGLE_SHEET_ID;
+    
+    if (!client_email || !private_key || !sheetId) {
+      console.log('⚠️ 缺少 Google Sheets 環境變數');
+      return false;
+    }
     
     const auth = new JWT({
       email: client_email,
@@ -45,14 +58,12 @@ async function initGoogleSheets() {
     await photosSheet.loadHeaderRow();
     const currentHeaders = photosSheet.headerValues;
     
-    console.log('📋 目前標題列：', currentHeaders);
-    
     if (currentHeaders.length === 0 || currentHeaders[0] !== '時間') {
       console.log('🔄 重新設定標題列...');
       await photosSheet.clear();
       photosSheet.headerValues = expectedHeaders;
       await photosSheet.setHeaderRow(expectedHeaders);
-      console.log('✅ 標題列已設定為：', expectedHeaders);
+      console.log('✅ 標題列已設定');
     }
     
     googleSheetReady = true;
@@ -65,39 +76,29 @@ async function initGoogleSheets() {
   }
 }
 
-// ========== ImgBB 上傳 ==========
-async function uploadToImgBB(imageBuffer) {
-  const apiKey = process.env.IMGBB_API_KEY;
-  if (!apiKey) {
-    console.log('⚠️ 未設定 IMGBB_API_KEY');
-    return null;
-  }
+// ========== Cloudinary 上傳圖片 ==========
+async function uploadToCloudinary(imageBuffer) {
+  console.log('☁️ 上傳到 Cloudinary...');
   
-  try {
-    const base64Image = imageBuffer.toString('base64');
-    const response = await axios.post(
-      `https://api.imgbb.com/1/upload?key=${apiKey}`,
-      new URLSearchParams({
-        image: base64Image,
-        expiration: 0
-      }),
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
       {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        timeout: 30000
+        folder: 'linebot_photos',
+        timeout: 30000,
+      },
+      (error, result) => {
+        if (error) {
+          console.error('❌ Cloudinary 上傳失敗：', error.message);
+          reject(error);
+        } else {
+          console.log('✅ Cloudinary 上傳成功');
+          resolve(result.secure_url);
+        }
       }
     );
     
-    if (response.data && response.data.data && response.data.data.url) {
-      console.log(`✅ ImgBB 上傳成功`);
-      return response.data.data.url;
-    }
-    return null;
-  } catch (error) {
-    console.error('❌ ImgBB 上傳失敗：', error.message);
-    return null;
-  }
+    uploadStream.end(imageBuffer);
+  });
 }
 
 // ========== 儲存圖片到 Google Sheets ==========
@@ -109,23 +110,6 @@ async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
   
   try {
     await photosSheet.loadHeaderRow();
-    const headers = photosSheet.headerValues;
-    console.log('📋 目前工作表欄位：', headers);
-    
-    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'];
-    let needReset = false;
-    
-    if (headers.length === 0 || headers[0] !== '時間') {
-      needReset = true;
-    }
-    
-    if (needReset) {
-      console.log('🔄 重新設定工作表欄位...');
-      await photosSheet.clear();
-      photosSheet.headerValues = expectedHeaders;
-      await photosSheet.setHeaderRow(expectedHeaders);
-      console.log('✅ 欄位已重新設定為：', expectedHeaders);
-    }
     
     const rowData = {
       '時間': new Date().toISOString(),
@@ -135,9 +119,8 @@ async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
       '原始訊息': userMessage || ''
     };
     
-    console.log('📝 寫入資料：', rowData);
     await photosSheet.addRow(rowData);
-    console.log(`✅ 照片已儲存！`);
+    console.log(`📸 照片已儲存`);
     return true;
   } catch (error) {
     console.error('❌ 儲存失敗：', error.message);
@@ -291,11 +274,11 @@ app.post('/webhook/:role', async (req, res) => {
         );
         console.log(`   ✅ 下載完成：${(imageResponse.data.length / 1024).toFixed(2)} KB`);
         
-        const imageUrl = await uploadToImgBB(imageResponse.data);
+        const imageUrl = await uploadToCloudinary(imageResponse.data);
         
         if (imageUrl) {
-          await savePhotoToSheet(userId, imageUrl, role, userMessage || '圖片分享');
-          await replyToUser(replyToken, `📸 照片已上傳到照片牆！\n🔗 ${imageUrl}\n\n👉 照片牆：https://fbtestbot.onrender.com/photowall`);
+          await savePhotoToSheet(userId, imageUrl, roleConfig.name, userMessage || '圖片分享');
+          await replyToUser(replyToken, `📸 照片已上傳到照片牆！\n\n👉 照片牆：https://fbtestbot.onrender.com/photowall`);
           console.log(`   ✅ 完成！`);
         } else {
           await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
@@ -323,53 +306,14 @@ app.post('/webhook/:role', async (req, res) => {
 });
 
 // ========== 照片牆 API ==========
+
+// 取得全部照片
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) {
-    console.log('⚠️ Google Sheets 未就緒');
     return res.json([]);
   }
   
   try {
-    await photosSheet.loadHeaderRow();
-    const rows = await photosSheet.getRows();
-    
-    console.log(`📸 讀取到 ${rows.length} 筆資料`);
-    
-    const photos = [];
-    for (const row of rows) {
-      const time = row.get('時間') || '';
-      const userId = row.get('使用者ID') || '匿名';
-      const imageUrl = row.get('圖片URL') || '';
-      const role = row.get('角色') || '未知角色';
-      const message = row.get('原始訊息') || '';
-      
-      if (imageUrl) {
-        photos.push({
-          time: time,
-          userId: userId,
-          imageUrl: imageUrl,
-          role: role,
-          message: message
-        });
-      }
-    }
-    
-    photos.reverse();
-    console.log(`✅ 成功讀取 ${photos.length} 張照片`);
-    res.json(photos);
-  } catch (error) {
-    console.error('❌ 讀取失敗：', error.message);
-    res.status(500).json({ error: '讀取失敗', detail: error.message });
-  }
-});
-// ========== 新增：取得特定使用者的照片 ==========
-app.get('/api/photos/user/:userId', async (req, res) => {
-  if (!googleSheetReady || !photosSheet) {
-    return res.json([]);
-  }
-  
-  try {
-    const targetUserId = req.params.userId;
     await photosSheet.loadHeaderRow();
     const rows = await photosSheet.getRows();
     
@@ -378,8 +322,7 @@ app.get('/api/photos/user/:userId', async (req, res) => {
       const userId = row.get('使用者ID') || '';
       const imageUrl = row.get('圖片URL') || '';
       
-      // 只取該使用者的照片
-      if (userId !== targetUserId) continue;
+      if (userId === 'test_user') continue;
       if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
       
       photos.push({
@@ -392,7 +335,7 @@ app.get('/api/photos/user/:userId', async (req, res) => {
     }
     
     photos.reverse();
-    console.log(`✅ 讀取使用者 ${targetUserId.substring(0,8)}... 的 ${photos.length} 張照片`);
+    console.log(`✅ 讀取 ${photos.length} 張照片`);
     res.json(photos);
   } catch (error) {
     console.error('❌ 讀取失敗：', error.message);
@@ -400,7 +343,46 @@ app.get('/api/photos/user/:userId', async (req, res) => {
   }
 });
 
-// ========== 新增：取得所有使用者列表（用於頭像牆） ==========
+// 取得特定使用者的照片
+app.get('/api/photos/user/:userId', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) {
+    return res.json([]);
+  }
+  
+  try {
+    const targetUserId = req.params.userId;
+    console.log(`🔍 查詢使用者：${targetUserId.substring(0, 8)}...`);
+    
+    await photosSheet.loadHeaderRow();
+    const rows = await photosSheet.getRows();
+    
+    const photos = [];
+    for (const row of rows) {
+      const userId = row.get('使用者ID') || '';
+      const imageUrl = row.get('圖片URL') || '';
+      
+      if (userId !== targetUserId) continue;
+      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      
+      photos.push({
+        time: row.get('時間') || '',
+        userId: userId,
+        imageUrl: imageUrl,
+        role: row.get('角色') || '未知角色',
+        message: row.get('原始訊息') || ''
+      });
+    }
+    
+    photos.sort((a, b) => new Date(b.time) - new Date(a.time));
+    console.log(`✅ 找到 ${photos.length} 張照片`);
+    res.json(photos);
+  } catch (error) {
+    console.error('❌ 讀取失敗：', error.message);
+    res.status(500).json({ error: '讀取失敗' });
+  }
+});
+
+// 取得所有使用者列表
 app.get('/api/users', async (req, res) => {
   if (!googleSheetReady || !photosSheet) {
     return res.json([]);
@@ -432,7 +414,6 @@ app.get('/api/users', async (req, res) => {
       const user = usersMap.get(userId);
       user.photoCount++;
       
-      // 更新最新照片
       const photoTime = row.get('時間') || '';
       if (photoTime > user.latestTime) {
         user.latestTime = photoTime;
@@ -450,37 +431,21 @@ app.get('/api/users', async (req, res) => {
     res.json([]);
   }
 });
-// 照片牆網頁
+
+// ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
 });
 
-// 健康檢查
-app.get('/', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// 測試端點
+// ========== 測試端點 ==========
 app.get('/test-google', async (req, res) => {
-  console.log('🧪 開始測試 Google Sheets...');
-  
-  const results = {
-    step1_checkEnv: { status: 'pending', message: '' },
-    step2_auth: { status: 'pending', message: '' },
-    step3_connect: { status: 'pending', message: '' },
-    step4_write: { status: 'pending', message: '' }
-  };
-  
   try {
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const key = process.env.GOOGLE_PRIVATE_KEY;
     const sheetId = process.env.GOOGLE_SHEET_ID;
     
-    results.step1_checkEnv.message = `EMAIL: ${email ? '✅' : '❌'} | KEY: ${key ? `✅ (長度: ${key.length})` : '❌'} | SHEET_ID: ${sheetId ? '✅' : '❌'}`;
-    results.step1_checkEnv.status = (email && key && sheetId) ? 'success' : 'failed';
-    
     if (!email || !key || !sheetId) {
-      throw new Error('缺少必要的環境變數');
+      return res.json({ success: false, message: '缺少環境變數' });
     }
     
     const privateKey = key.replace(/\\n/g, '\n');
@@ -489,48 +454,22 @@ app.get('/test-google', async (req, res) => {
       key: privateKey,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-    results.step2_auth.status = 'success';
-    results.step2_auth.message = '認證建立成功';
     
     const doc = new GoogleSpreadsheet(sheetId, auth);
     await doc.loadInfo();
-    results.step3_connect.status = 'success';
-    results.step3_connect.message = `連線成功！試算表：${doc.title}`;
     
-    let sheet = doc.sheetsByTitle['照片牆'];
-    if (!sheet) {
-      sheet = await doc.addSheet({ 
-        title: '照片牆', 
-        headerValues: ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'] 
-      });
-    }
-    
-    await sheet.addRow({
-      '時間': new Date().toISOString(),
-      '使用者ID': 'test_user',
-      '圖片URL': 'https://test.com/test.jpg',
-      '角色': '測試',
-      '原始訊息': '測試連線'
-    });
-    results.step4_write.status = 'success';
-    results.step4_write.message = '寫入測試成功！';
-    
-    res.json({
-      success: true,
-      message: '🎉 Google Sheets 完全正常！',
-      results: results
-    });
-    
+    res.json({ success: true, message: `連線成功！試算表：${doc.title}` });
   } catch (error) {
-    res.json({
-      success: false,
-      message: `❌ 測試失敗：${error.message}`,
-      results: results
-    });
+    res.json({ success: false, message: error.message });
   }
 });
 
-// 啟動伺服器
+// 健康檢查
+app.get('/', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// ========== 啟動伺服器 ==========
 const port = process.env.PORT || 3000;
 
 app.listen(port, async () => {
