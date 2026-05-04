@@ -250,9 +250,15 @@ async function replyToUser(replyToken, message) {
 }
 
 // ========== LINE Webhook ==========
+// ========== 根目錄：轉址到照片牆 ==========
 app.get('/', (req, res) => {
   res.redirect('/photowall');
 });
+
+// ========== LINE Webhook ==========
+app.post('/webhook/:role', async (req, res) => {
+  // 立即回應 LINE，避免超時
+  res.status(200).send('OK');
   
   const role = req.params.role;
   const roleConfig = ROLES[role];
@@ -302,14 +308,14 @@ app.get('/', (req, res) => {
           await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
         }
       }
-      // 處理文字
+      // 處理文字訊息
       else if (messageType === 'text' && userMessage) {
         const aiReply = await callDeepSeekWithMemory(userId, userMessage, roleConfig.systemPrompt);
         await replyToUser(replyToken, aiReply);
         console.log(`   💬 用戶：${userMessage.substring(0, 50)}`);
         console.log(`   🤖 回應：${aiReply.substring(0, 50)}`);
       }
-      // 其他訊息
+      // 其他訊息（貼圖等）
       else if (replyToken) {
         await replyToUser(replyToken, roleConfig.welcome);
       }
@@ -322,6 +328,8 @@ app.get('/', (req, res) => {
     }
   }
 });
+
+// ========== 照片牆 API ==========
 
 // ========== 照片牆 API ==========
 
