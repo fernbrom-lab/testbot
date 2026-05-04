@@ -7,7 +7,7 @@ const { JWT } = require('google-auth-library');
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public')); // 讓照片牆網頁可以被訪問
+app.use(express.static('public'));
 
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
@@ -15,10 +15,10 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 // ========== Google Sheets 設定 ==========
 let googleSheetDoc = null;
 let googleSheetReady = false;
+let photosSheet = null;  // 保存工作表參考
 
 async function initGoogleSheets() {
   try {
-    // 從環境變數或金鑰檔案讀取設定
     let client_email, private_key;
     
     if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
@@ -48,20 +48,24 @@ async function initGoogleSheets() {
     googleSheetDoc = new GoogleSpreadsheet(sheetId, auth);
     await googleSheetDoc.loadInfo();
     
-    // 建立照片牆工作表（如果不存在）
-    let sheet = googleSheetDoc.sheetsByTitle['照片牆'];
-    if (!sheet) {
-      sheet = await googleSheetDoc.addSheet({ 
+    // 取得或建立工作表，並保存到全域變數
+    photosSheet = googleSheetDoc.sheetsByTitle['照片牆'];
+    if (!photosSheet) {
+      photosSheet = await googleSheetDoc.addSheet({ 
         title: '照片牆', 
         headerValues: ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'] 
       });
       console.log('✅ 已建立「照片牆」工作表');
+    } else {
+      console.log('✅ 已找到「照片牆」工作表');
     }
     
+    googleSheetReady = true;
     console.log('✅ Google Sheets 連線成功');
     return true;
   } catch (error) {
     console.error('❌ Google Sheets 連線失敗：', error.message);
+    googleSheetReady = false;
     return false;
   }
 }
@@ -80,7 +84,7 @@ async function uploadToImgBB(imageBuffer) {
       `https://api.imgbb.com/1/upload?key=${apiKey}`,
       new URLSearchParams({
         image: base64Image,
-        expiration: 0 // 永久儲存
+        expiration: 0
       }),
       {
         headers: {
@@ -99,14 +103,13 @@ async function uploadToImgBB(imageBuffer) {
 
 // ========== 儲存圖片到 Google Sheets ==========
 async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
-  if (!googleSheetDoc) {
+  if (!googleSheetReady || !photosSheet) {
     console.log('⚠️ Google Sheets 未就緒，無法儲存圖片');
     return false;
   }
   
   try {
-    const sheet = googleSheetDoc.sheetsByTitle['照片牆'];
-    await sheet.addRow({
+    await photosSheet.addRow({
       '時間': new Date().toISOString(),
       '使用者ID': userId,
       '圖片URL': imageUrl,
@@ -121,7 +124,7 @@ async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
   }
 }
 
-// ========== 對話記憶（純記憶體，不用資料庫） ==========
+// ========== 對話記憶 ==========
 const userConversations = {};
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -140,7 +143,6 @@ function addToHistory(userId, role, content) {
   }
 }
 
-// 定期清理記憶體
 setInterval(() => {
   const users = Object.keys(userConversations);
   if (users.length > 0) {
@@ -168,7 +170,7 @@ function loadRoles() {
 loadRoles();
 setInterval(loadRoles, 60000);
 
-// ========== DeepSeek 呼叫函數（原有功能，完全不變） ==========
+// ========== DeepSeek 呼叫函數 ==========
 async function callDeepSeekWithMemory(userId, userMessage, systemPrompt) {
   console.log(`📡 呼叫 DeepSeek API（使用者 ${userId.substring(0, 8)}...，有記憶模式）`);
   
@@ -215,7 +217,7 @@ async function callDeepSeekWithMemory(userId, userMessage, systemPrompt) {
   }
 }
 
-// ========== LINE Webhook（新增圖片處理） ==========
+// ========== LINE Webhook ==========
 app.post('/webhook/:role', async (req, res) => {
   const role = req.params.role;
   const roleConfig = ROLES[role];
@@ -247,13 +249,12 @@ app.post('/webhook/:role', async (req, res) => {
     if (!replyToken) continue;
     
     try {
-      // ========== 處理圖片訊息（新增功能） ==========
+      // 處理圖片訊息
       if (messageType === 'image') {
         const messageId = event.message.id;
         console.log(`   📸 收到圖片訊息，ID：${messageId}`);
         
         try {
-          // 1. 從 LINE 下載圖片
           console.log(`   🔄 下載圖片中...`);
           const imageResponse = await axios.get(
             `https://api-data.line.me/v2/bot/message/${messageId}/content`,
@@ -265,17 +266,13 @@ app.post('/webhook/:role', async (req, res) => {
           );
           
           console.log(`   ✅ 圖片下載成功，大小：${(imageResponse.data.length / 1024).toFixed(2)} KB`);
-          
-          // 2. 上傳到 ImgBB
           console.log(`   📤 上傳到 ImgBB...`);
           const imageUrl = await uploadToImgBB(imageResponse.data);
           
           if (imageUrl) {
-            // 3. 儲存到 Google Sheets
             await savePhotoToSheet(userId, imageUrl, role, userMessage || '圖片分享');
             
-            // 4. 回覆成功訊息
-            const replyText = `📸 照片已上傳到照片牆！\n🔗 ${imageUrl}\n\n💡 查看照片牆：${process.env.PHOTOWALL_URL || 'http://localhost:' + port + '/photowall'}`;
+            const replyText = `📸 照片已上傳到照片牆！\n🔗 ${imageUrl}\n\n💡 查看照片牆：https://fbtestbot.onrender.com/photowall`;
             
             await axios.post('https://api.line.me/v2/bot/message/reply', {
               replyToken: replyToken,
@@ -289,7 +286,6 @@ app.post('/webhook/:role', async (req, res) => {
             
             console.log(`   ✅ 圖片處理完成！`);
           } else {
-            // 圖片上傳失敗
             await axios.post('https://api.line.me/v2/bot/message/reply', {
               replyToken: replyToken,
               messages: [{ type: 'text', text: '❌ 圖片上傳失敗，請稍後再試。' }]
@@ -314,7 +310,7 @@ app.post('/webhook/:role', async (req, res) => {
           });
         }
       }
-      // ========== 處理文字訊息（原有功能，完全不變） ==========
+      // 處理文字訊息
       else if (messageType === 'text' && userMessage) {
         const aiReply = await callDeepSeekWithMemory(userId, userMessage, roleConfig.systemPrompt);
         
@@ -331,7 +327,7 @@ app.post('/webhook/:role', async (req, res) => {
         console.log(`   💬 用戶：${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}`);
         console.log(`   🤖 ${roleConfig.name}：${aiReply.substring(0, 50)}${aiReply.length > 50 ? '...' : ''}\n`);
       }
-      // ========== 其他訊息（貼圖等） ==========
+      // 其他訊息
       else {
         await axios.post('https://api.line.me/v2/bot/message/reply', {
           replyToken: replyToken,
@@ -352,22 +348,21 @@ app.post('/webhook/:role', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// ========== 照片牆 API 和網頁 ==========
+// ========== 照片牆 API ==========
 app.get('/api/photos', async (req, res) => {
-  if (!googleSheetDoc) {
+  if (!googleSheetReady || !photosSheet) {
     return res.json([]);
   }
   
   try {
-    const sheet = googleSheetDoc.sheetsByTitle['照片牆'];
-    const rows = await sheet.getRows();
+    const rows = await photosSheet.getRows();
     const photos = rows.map(row => ({
       time: row['時間'],
       userId: row['使用者ID'],
       imageUrl: row['圖片URL'],
       role: row['角色'],
       message: row['原始訊息']
-    })).reverse(); // 最新的在前面
+    })).reverse();
     
     res.json(photos.slice(0, 100));
   } catch (error) {
@@ -517,8 +512,7 @@ app.listen(port, async () => {
   console.log(`📋 已載入角色：${Object.keys(ROLES).join(', ')}`);
   console.log(`🧠 對話記憶模式：每個使用者最多記住 ${MAX_HISTORY_MESSAGES} 則訊息（10 組對話）`);
   
-  // 初始化 Google Sheets
   await initGoogleSheets();
   
-  console.log(`📸 照片牆網址：http://localhost:${port}/photowall`);
+  console.log(`📸 照片牆網址：https://fbtestbot.onrender.com/photowall`);
 });
