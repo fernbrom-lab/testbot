@@ -20,30 +20,9 @@ async function initGoogleSheets() {
   try {
     console.log('🔧 開始初始化 Google Sheets...');
     
-    let client_email, private_key;
-    
-    if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
-      client_email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-      private_key = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-      console.log('📧 使用環境變數設定');
-    } else if (fs.existsSync('./service-account-key.json')) {
-      const keyFile = JSON.parse(fs.readFileSync('./service-account-key.json', 'utf8'));
-      client_email = keyFile.client_email;
-      private_key = keyFile.private_key;
-      console.log('📧 使用金鑰檔案設定');
-    } else {
-      console.log('⚠️ 未找到 Google Sheets 設定');
-      return false;
-    }
-    
+    const client_email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const private_key = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
     const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) {
-      console.log('⚠️ 未設定 GOOGLE_SHEET_ID');
-      return false;
-    }
-    
-    console.log(`📊 試算表 ID：${sheetId}`);
-    console.log(`📧 服務帳戶：${client_email}`);
     
     const auth = new JWT({
       email: client_email,
@@ -101,14 +80,12 @@ async function uploadToImgBB(imageBuffer) {
     );
     
     if (response.data && response.data.data && response.data.data.url) {
-      console.log(`✅ ImgBB 上傳成功：${response.data.data.url}`);
+      console.log(`✅ ImgBB 上傳成功`);
       return response.data.data.url;
-    } else {
-      console.error('❌ ImgBB 回應格式錯誤：', response.data);
-      return null;
     }
+    return null;
   } catch (error) {
-    console.error('❌ ImgBB 上傳失敗：', error.response?.data || error.message);
+    console.error('❌ ImgBB 上傳失敗：', error.message);
     return null;
   }
 }
@@ -128,7 +105,7 @@ async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
       '角色': role,
       '原始訊息': userMessage || ''
     });
-    console.log(`📸 照片已儲存，使用者：${userId}`);
+    console.log(`📸 照片已儲存`);
     return true;
   } catch (error) {
     console.error('❌ 儲存失敗：', error.message);
@@ -242,7 +219,6 @@ async function replyToUser(replyToken, message) {
 
 // ========== LINE Webhook ==========
 app.post('/webhook/:role', async (req, res) => {
-  // 立即回應 200，避免 LINE 重送
   res.status(200).send('OK');
   
   const role = req.params.role;
@@ -273,8 +249,6 @@ app.post('/webhook/:role', async (req, res) => {
         const messageId = event.message.id;
         console.log(`   📸 收到圖片：${messageId}`);
         
-        // 1. 下載圖片
-        console.log(`   🔄 下載中...`);
         const imageResponse = await axios.get(
           `https://api-data.line.me/v2/bot/message/${messageId}/content`,
           {
@@ -285,18 +259,14 @@ app.post('/webhook/:role', async (req, res) => {
         );
         console.log(`   ✅ 下載完成：${(imageResponse.data.length / 1024).toFixed(2)} KB`);
         
-        // 2. 上傳 ImgBB
-        console.log(`   📤 上傳 ImgBB...`);
         const imageUrl = await uploadToImgBB(imageResponse.data);
         
         if (imageUrl) {
-          // 3. 儲存到 Google Sheets
           await savePhotoToSheet(userId, imageUrl, role, userMessage || '圖片分享');
-          await replyToUser(replyToken, `📸 照片已上傳！\n🔗 ${imageUrl}\n\n👉 照片牆：https://fbtestbot.onrender.com/photowall`);
+          await replyToUser(replyToken, `📸 照片已上傳到照片牆！\n🔗 ${imageUrl}\n\n👉 照片牆：https://fbtestbot.onrender.com/photowall`);
           console.log(`   ✅ 完成！`);
         } else {
           await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
-          console.log(`   ❌ ImgBB 上傳失敗`);
         }
       }
       // 處理文字
@@ -360,91 +330,9 @@ app.listen(port, async () => {
   console.log(`🚀 伺服器啟動，port: ${port}`);
   console.log(`📋 角色：${Object.keys(ROLES).join(', ')}`);
   
-  // 初始化 Google Sheets（不阻塞啟動）
   await initGoogleSheets();
   
   if (googleSheetReady) {
     console.log(`📸 照片牆：https://fbtestbot.onrender.com/photowall`);
-  } else {
-    console.log(`⚠️ 照片牆功能無法使用，請檢查 Google Sheets 設定`);
   }
 });
-// 加入一個測試 Google Sheets 的 API 端點
-app.get('/test-google', async (req, res) => {
-  console.log('🧪 開始測試 Google Sheets...');
-  
-  const results = {
-    step1_checkEnv: { status: 'pending', message: '' },
-    step2_auth: { status: 'pending', message: '' },
-    step3_connect: { status: 'pending', message: '' },
-    step4_write: { status: 'pending', message: '' }
-  };
-  
-  try {
-    // Step 1: 檢查環境變數
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_PRIVATE_KEY;
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    
-    results.step1_checkEnv.message = `EMAIL: ${email ? '✅' : '❌'} | KEY: ${key ? `✅ (長度: ${key.length})` : '❌'} | SHEET_ID: ${sheetId ? '✅' : '❌'}`;
-    results.step1_checkEnv.status = (email && key && sheetId) ? 'success' : 'failed';
-    
-    if (!email || !key || !sheetId) {
-      throw new Error('缺少必要的環境變數');
-    }
-    
-    // Step 2: 建立認證
-    const privateKey = key.replace(/\\n/g, '\n');
-    const auth = new JWT({
-      email: email,
-      key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    results.step2_auth.status = 'success';
-    results.step2_auth.message = '認證建立成功';
-    
-    // Step 3: 連線到試算表
-    const doc = new GoogleSpreadsheet(sheetId, auth);
-    await doc.loadInfo();
-    results.step3_connect.status = 'success';
-    results.step3_connect.message = `連線成功！試算表：${doc.title}`;
-    
-    // Step 4: 測試寫入
-    let sheet = doc.sheetsByTitle['照片牆'];
-    if (!sheet) {
-      sheet = await doc.addSheet({ 
-        title: '照片牆', 
-        headerValues: ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'] 
-      });
-    }
-    
-    await sheet.addRow({
-      '時間': new Date().toISOString(),
-      '使用者ID': 'test_user',
-      '圖片URL': 'https://test.com/test.jpg',
-      '角色': '測試',
-      '原始訊息': '測試連線'
-    });
-    results.step4_write.status = 'success';
-    results.step4_write.message = '寫入測試成功！';
-    
-    res.json({
-      success: true,
-      message: '🎉 Google Sheets 完全正常！',
-      results: results
-    });
-    
-  } catch (error) {
-    results[`step_${Object.keys(results).length}`] = {
-      status: 'failed',
-      message: error.message
-    };
-    
-    res.json({
-      success: false,
-      message: `❌ 測試失敗：${error.message}`,
-      results: results
-    });
-  }
-});
-
