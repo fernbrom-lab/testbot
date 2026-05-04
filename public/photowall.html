@@ -485,13 +485,18 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('✅ 照片已刪除');
-                    if (refreshCallback) {
-                        refreshCallback();
-                    } else {
-                        window.location.reload();
-                    }
-                } else {
+    alert('✅ 照片已刪除');
+    if (refreshCallback) {
+        refreshCallback();
+    } else {
+        // 不重新載入，只刷新當前視圖
+        if (currentView === 'all') {
+            showAllPhotos();
+        } else if (currentView === 'users') {
+            showUsers();
+        }
+    }
+} else {
                     alert(`❌ 刪除失敗：${result.message}`);
                 }
             } catch (error) {
@@ -647,6 +652,15 @@
             photoModal.style.display = 'block';
         }        
         function deleteFromModal(imageUrl, userId) {
+    photoModal.style.display = 'none';
+    showConfirm(imageUrl, userId, () => {
+        if (currentView === 'all') {
+            showAllPhotos();
+        } else if (currentView === 'users') {
+            showUsers();
+        }
+    });
+}function deleteFromModal(imageUrl, userId) {
             photoModal.style.display = 'none';
             showConfirm(imageUrl, userId, () => window.location.reload());
         }
