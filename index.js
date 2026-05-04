@@ -369,3 +369,82 @@ app.listen(port, async () => {
     console.log(`⚠️ 照片牆功能無法使用，請檢查 Google Sheets 設定`);
   }
 });
+// 加入一個測試 Google Sheets 的 API 端點
+app.get('/test-google', async (req, res) => {
+  console.log('🧪 開始測試 Google Sheets...');
+  
+  const results = {
+    step1_checkEnv: { status: 'pending', message: '' },
+    step2_auth: { status: 'pending', message: '' },
+    step3_connect: { status: 'pending', message: '' },
+    step4_write: { status: 'pending', message: '' }
+  };
+  
+  try {
+    // Step 1: 檢查環境變數
+    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const key = process.env.GOOGLE_PRIVATE_KEY;
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    
+    results.step1_checkEnv.message = `EMAIL: ${email ? '✅' : '❌'} | KEY: ${key ? `✅ (長度: ${key.length})` : '❌'} | SHEET_ID: ${sheetId ? '✅' : '❌'}`;
+    results.step1_checkEnv.status = (email && key && sheetId) ? 'success' : 'failed';
+    
+    if (!email || !key || !sheetId) {
+      throw new Error('缺少必要的環境變數');
+    }
+    
+    // Step 2: 建立認證
+    const privateKey = key.replace(/\\n/g, '\n');
+    const auth = new JWT({
+      email: email,
+      key: privateKey,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    results.step2_auth.status = 'success';
+    results.step2_auth.message = '認證建立成功';
+    
+    // Step 3: 連線到試算表
+    const doc = new GoogleSpreadsheet(sheetId, auth);
+    await doc.loadInfo();
+    results.step3_connect.status = 'success';
+    results.step3_connect.message = `連線成功！試算表：${doc.title}`;
+    
+    // Step 4: 測試寫入
+    let sheet = doc.sheetsByTitle['照片牆'];
+    if (!sheet) {
+      sheet = await doc.addSheet({ 
+        title: '照片牆', 
+        headerValues: ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'] 
+      });
+    }
+    
+    await sheet.addRow({
+      '時間': new Date().toISOString(),
+      '使用者ID': 'test_user',
+      '圖片URL': 'https://test.com/test.jpg',
+      '角色': '測試',
+      '原始訊息': '測試連線'
+    });
+    results.step4_write.status = 'success';
+    results.step4_write.message = '寫入測試成功！';
+    
+    res.json({
+      success: true,
+      message: '🎉 Google Sheets 完全正常！',
+      results: results
+    });
+    
+  } catch (error) {
+    results[`step_${Object.keys(results).length}`] = {
+      status: 'failed',
+      message: error.message
+    };
+    
+    res.json({
+      success: false,
+      message: `❌ 測試失敗：${error.message}`,
+      results: results
+    });
+  }
+});
+
