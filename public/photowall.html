@@ -273,12 +273,99 @@
             z-index: 100;
         }
 
+        /* 刪除按鈕樣式 */
+        .delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 5;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #ff4444;
+            transform: scale(1.05);
+        }
+
+        .photo-card:hover .delete-btn {
+            display: flex;
+        }
+
+        /* 確認對話框覆蓋樣式 */
+        .confirm-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .confirm-dialog {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .confirm-dialog p {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .confirm-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .confirm-btn.confirm {
+            background: #ff4444;
+            color: white;
+        }
+
+        .confirm-btn.cancel {
+            background: #ddd;
+            color: #333;
+        }
+
         @media (max-width: 768px) {
             .photo-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
             .users-grid {
                 grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            .delete-btn {
+                display: flex;
+                width: 28px;
+                height: 28px;
+                font-size: 14px;
             }
         }
     </style>
@@ -300,6 +387,7 @@
 
     <button class="back-to-top" onclick="scrollToTop()">↑</button>
 
+    <!-- 照片彈窗 -->
     <div id="photoModal" class="modal">
         <span class="close">&times;</span>
         <div class="modal-content">
@@ -308,6 +396,7 @@
         </div>
     </div>
 
+    <!-- 使用者照片彈窗 -->
     <div id="userModal" class="user-modal">
         <div class="user-modal-header">
             <button class="back-btn" onclick="closeUserModal()">← 返回</button>
@@ -316,15 +405,37 @@
         <div id="userModalGrid"></div>
     </div>
 
+    <!-- 確認刪除對話框 -->
+    <div id="confirmOverlay" class="confirm-overlay">
+        <div class="confirm-dialog">
+            <p>確定要刪除這張照片嗎？</p>
+            <div class="confirm-buttons">
+                <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
+                <button class="confirm-btn confirm" onclick="executeDelete()">刪除</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let allPhotos = [];
         let currentView = 'all';
+        let pendingDelete = { rowIndex: null, userId: null, callback: null };
+
+        // 從 URL 取得使用者 ID（可以改為從 LINE 登入取得，這裡先讓使用者輸入）
+        let currentUserId = localStorage.getItem('userId');
+        if (!currentUserId) {
+            currentUserId = prompt('請輸入您的 LINE 使用者 ID（可在 LINE 官方帳號傳送任意訊息後，詢問管理員取得）', 'U144bfc1b6fa4ab667db4eb75abd5abe7');
+            if (currentUserId) {
+                localStorage.setItem('userId', currentUserId);
+            }
+        }
 
         const photoModal = document.getElementById('photoModal');
         const modalImg = document.getElementById('modalImage');
         const modalInfo = document.getElementById('modalInfo');
         const userModal = document.getElementById('userModal');
         const backToTop = document.querySelector('.back-to-top');
+        const confirmOverlay = document.getElementById('confirmOverlay');
 
         document.querySelector('.close').onclick = () => photoModal.style.display = "none";
         photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
@@ -352,23 +463,63 @@
         function truncateUserId(userId) {
             if (!userId) return '匿名';
             if (userId === 'test_user') return '測試';
+            if (userId === currentUserId) return '我';
             if (userId.length > 12) return userId.substring(0, 8) + '...';
             return userId;
         }
 
+        function showConfirm(rowIndex, userId, callback) {
+            pendingDelete = { rowIndex, userId, callback };
+            confirmOverlay.style.display = 'flex';
+        }
+
+        function hideConfirm() {
+            confirmOverlay.style.display = 'none';
+            pendingDelete = { rowIndex: null, userId: null, callback: null };
+        }
+
+        async function executeDelete() {
+            if (!pendingDelete.rowIndex) return;
+            
+            const { rowIndex, userId, callback } = pendingDelete;
+            hideConfirm();
+            
+            try {
+                const response = await fetch(`/api/photo/${rowIndex}?userId=${encodeURIComponent(userId)}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ 照片已刪除');
+                    if (callback) callback();
+                } else {
+                    alert(`❌ 刪除失敗：${result.message}`);
+                }
+            } catch (error) {
+                alert('❌ 刪除失敗：網路錯誤');
+                console.error(error);
+            }
+        }
+
+        // 顯示全部照片
         function renderPhotoGrid(photos) {
             if (!photos || photos.length === 0) {
                 return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
             }
             let html = '<div class="photo-grid">';
-            photos.forEach(photo => {
+            photos.forEach((photo, index) => {
+                const isOwner = (photo.userId === currentUserId);
                 html += `
-                    <div class="photo-card" onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
-                        <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay">
-                            <div>👤 ${truncateUserId(photo.userId)}</div>
-                            <div>🎭 ${photo.role || '未知'}</div>
-                            <div>❤️ ${formatTime(photo.time)}</div>
+                    <div class="photo-card" style="position: relative;">
+                        ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm(${index}, '${photo.userId}', () => location.reload())">🗑️</button>` : ''}
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
+                            <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                            <div class="photo-overlay">
+                                <div>👤 ${truncateUserId(photo.userId)}</div>
+                                <div>🎭 ${photo.role || '未知'}</div>
+                                <div>❤️ ${formatTime(photo.time)}</div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -429,7 +580,7 @@
             }
         }
 
-        // 個人相簿：強制 3 排網格，佔滿版面
+        // 個人相簿（含刪除功能）
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
             modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
@@ -449,14 +600,16 @@
                     return;
                 }
                 
-                // 使用 flex 配合百分比寬度，讓照片填滿版面
                 let html = `<div style="display: flex; flex-wrap: wrap; gap: 5px; padding: 10px;">`;
-                photos.forEach(photo => {
+                photos.forEach((photo, idx) => {
+                    const isOwner = (photo.userId === currentUserId);
                     html += `
-                        <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; cursor: pointer; background: #f0f0f0; border-radius: 8px;" 
-                             onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
-                            <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
-                                 loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                        <div style="flex: 1 1 calc(33.333% - 10px); min-width: 200px; aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;">
+                            ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm(${idx}, '${photo.userId}', () => { closeUserModal(); showUserPhotos('${userId}', '${role}'); })">🗑️</button>` : ''}
+                            <div style="width: 100%; height: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}')">
+                                <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
+                                     loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                            </div>
                         </div>
                     `;
                 });
@@ -481,8 +634,21 @@
                 <div>🎭 ${role || '未知角色'}</div>
                 <div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>
                 ${message ? `<div>💬 ${message}</div>` : ''}
+                ${userId === currentUserId ? '<div style="margin-top: 12px;"><button onclick="deleteCurrentPhoto()" style="background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer;">🗑️ 刪除這張照片</button></div>' : ''}
             `;
             photoModal.style.display = 'block';
+            
+            window.currentPhotoUserId = userId;
+            window.currentPhotoRowIndex = null;
+            // 需要找到這張照片的 rowIndex，這裡簡化：提示使用者從個人相簿刪除
+            if (userId === currentUserId) {
+                window.currentPhotoMessage = '請從個人相簿中刪除照片';
+            }
+        }
+        
+        function deleteCurrentPhoto() {
+            photoModal.style.display = 'none';
+            alert('請從「成員」→ 您的個人相簿中點擊刪除按鈕來刪除照片');
         }
 
         userModal.onclick = (e) => {
