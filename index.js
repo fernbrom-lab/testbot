@@ -250,8 +250,9 @@ async function replyToUser(replyToken, message) {
 }
 
 // ========== LINE Webhook ==========
-app.post('/webhook/:role', async (req, res) => {
-  res.status(200).send('OK');
+app.get('/', (req, res) => {
+  res.redirect('/photowall');
+});
   
   const role = req.params.role;
   const roleConfig = ROLES[role];
@@ -448,7 +449,42 @@ app.get('/api/users', async (req, res) => {
     res.json([]);
   }
 });
+// ========== 新增：刪除照片的 API ==========
+// 注意：這個端點沒有做嚴格的權限驗證，僅供你和管理員測試使用
+app.delete('/api/photo/:sheetId/:rowIndex', async (req, res) => {
+  // 一個簡單的密碼驗證，防止誤刪
+  const deletePassword = req.query.password;
+  const correctPassword = process.env.DELETE_PASSWORD; // 請在 Render 環境變數中設定 DELETE_PASSWORD
 
+  if (!correctPassword || deletePassword !== correctPassword) {
+    return res.status(401).json({ success: false, message: '密碼錯誤，無權限刪除' });
+  }
+
+  if (!googleSheetReady || !photosSheet) {
+    return res.status(503).json({ success: false, message: '服務未就緒' });
+  }
+
+  const { sheetId, rowIndex } = req.params;
+  
+  try {
+    // 注意：sheetId 和 rowIndex 需要前端傳過來，為了簡化，我們直接用 photosSheet
+    // 更穩健的方式是根據 sheetId 獲取對應的 sheet，這裡我們先假設操作的都是預設的 photosSheet
+    const rows = await photosSheet.getRows();
+    const targetRow = rows[parseInt(rowIndex)];
+    
+    if (!targetRow) {
+      return res.status(404).json({ success: false, message: '找不到該筆照片資料' });
+    }
+
+    await targetRow.delete();
+    console.log(`✅ 已刪除照片 (行索引: ${rowIndex})`);
+    res.json({ success: true, message: '照片已刪除' });
+    
+  } catch (error) {
+    console.error('❌ 刪除照片失敗：', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 // ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
