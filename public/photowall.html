@@ -30,19 +30,19 @@
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 照片網格 - 全部照片 */
+        /* 照片網格 - 全部照片（移除強制正方形） */
         .photo-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:4px; background:#fff; }
-        .photo-card { position:relative; aspect-ratio:1/1; overflow:hidden; cursor:pointer; background:#f0f0f0; }
-        .photo-card img { width:100%; height:100%; object-fit:cover; transition:transform 0.3s; }
-        .photo-card:hover img { transform:scale(1.05); }
+        .photo-card { position:relative; overflow:hidden; cursor:pointer; background:#f0f0f0; }
+        .photo-card img { width:100%; height:auto; display:block; transition:transform 0.3s; }
+        .photo-card:hover img { transform:scale(1.02); }
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent, rgba(0,0,0,0.7)); color:white; padding:40px 12px 12px; opacity:0; transition:opacity 0.3s; }
         .photo-card:hover .photo-overlay { opacity:1; }
         
-        /* 刪除按鈕 */
+        /* 刪除按鈕 - 僅在個人相簿顯示，全部照片不顯示 */
         .delete-btn { position:absolute; top:10px; right:10px; background:rgba(255,68,68,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:18px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
         
-        /* 設為頭像按鈕 */
+        /* 設為頭像按鈕 - 僅在個人相簿顯示 */
         .set-avatar-btn { position:absolute; top:10px; right:50px; background:rgba(102,126,234,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
         
@@ -58,13 +58,15 @@
         .back-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:8px; color:#333; }
         .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
         
-        /* 個人相簿內容 - 手機橫1，電腦橫3 */
+        /* 個人相簿內容 - 手機橫1，電腦橫3，照片填滿 */
         .user-modal-grid { display:flex; flex-direction:column; gap:5px; padding:5px; width:100%; }
-        .user-modal-grid > div { width:100%; aspect-ratio:1/1; }
+        .user-modal-grid > div { width:100%; background:#f0f0f0; border-radius:8px; overflow:hidden; }
+        .user-modal-grid img { width:100%; height:auto; display:block; }
         
         @media (min-width: 769px) {
             .user-modal-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
-            .user-modal-grid > div { width:auto; }
+            .user-modal-grid > div { width:auto; aspect-ratio:1/1; }
+            .user-modal-grid img { width:100%; height:100%; object-fit:cover; }
         }
         
         .loading { text-align:center; padding:50px; color:#999; }
@@ -86,7 +88,7 @@
     </style>
 </head>
 <body>
-<div class="navbar"><div class="navbar-content"><div class="logo">📷📸📷</div><div class="nav-buttons"><button class="nav-btn active">🏠</button><button class="nav-btn">👥</button></div></div></div>
+<div class="navbar"><div class="navbar-content"><div class="logo">📸</div><div class="nav-buttons"><button class="nav-btn active">🏠</button><button class="nav-btn">👥</button></div></div></div>
 <div class="container" id="mainContainer"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 <div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
@@ -116,9 +118,8 @@ async function executeDelete() {
         const result = await res.json();
         if(result.success) {
             alert('✅ 照片已刪除');
-            const card = document.querySelector(`.photo-card[data-url="${imageUrl}"]`);
-            if(card) card.remove();
             if(refreshCallback) refreshCallback();
+            else location.reload();
         } else alert('❌ 刪除失敗：'+result.message);
     } catch(e) { alert('❌ 刪除失敗：網路錯誤'); console.error(e); }
 }
@@ -146,13 +147,12 @@ function renderPhotoGrid(photos) {
     if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
     let html = '<div class="photo-grid">';
     photos.forEach(photo => {
-        const isOwner = currentUserId && (photo.userId === currentUserId);
-        html += `<div class="photo-card" style="position:relative;" data-url="${photo.imageUrl}">
+        // 群組相簿不顯示任何按鈕（刪除、設為頭像都不顯示）
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                         <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭 ${photo.role||'未知'}</div><div>❤️ ${formatTime(photo.time)}</div></div>
                     </div>
-                    ${isOwner ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
                 </div>`;
     });
     html += '</div>';
@@ -201,7 +201,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName}的相簿 🎭`;
+    modalTitle.innerHTML = `👤 ${titleName} 的相簿 🎭 ${role || '未知角色'}`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
@@ -222,11 +222,11 @@ async function showUserPhotos(userId, role, displayName) {
         photos.forEach((photo) => {
             const isOwner = currentUserId && (photo.userId === currentUserId);
             html += `
-                <div style="aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;" data-url="${photo.imageUrl}">
+                <div style="overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;" data-url="${photo.imageUrl}">
                     ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}'); })">🗑️</button>` : ''}
                     ${isOwner ? `<button class="set-avatar-btn" style="display: flex; top: 5px; right: 45px;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                    <div style="width: 100%; height: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                        <img src="${photo.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" 
+                    <div style="width: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                        <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block;" 
                              loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                     </div>
                 </div>
