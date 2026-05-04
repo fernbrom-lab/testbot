@@ -77,7 +77,6 @@ async function initGoogleSheets() {
 }
 
 // ========== Cloudinary 上傳圖片 ==========
-// ========== Cloudinary 上傳圖片 (強化版 - 確保成功才回傳) ==========
 async function uploadToCloudinary(imageBuffer, retries = 3) {
   console.log(`☁️ 上傳到 Cloudinary... (剩餘嘗試次數: ${retries})`);
   
@@ -93,7 +92,6 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
             if (error) {
               return reject(error);
             }
-            // 關鍵：確認 Cloudinary 真的有回傳 secure_url
             if (uploadResult && uploadResult.secure_url) {
               resolve(uploadResult);
             } else {
@@ -110,14 +108,14 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
     } catch (error) {
       console.error(`❌ Cloudinary 上傳失敗 (嘗試 ${attempt}/${retries}):`, error.message);
       if (attempt === retries) {
-        return null; // 所有嘗試都失敗，回傳 null
+        return null;
       }
-      // 等待 1 秒後重試
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
   return null;
 }
+
 // ========== 儲存圖片到 Google Sheets ==========
 async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
   if (!googleSheetReady || !photosSheet) {
@@ -249,15 +247,32 @@ async function replyToUser(replyToken, message) {
   }
 }
 
-// ========== LINE Webhook ==========
 // ========== 根目錄：轉址到照片牆 ==========
 app.get('/', (req, res) => {
   res.redirect('/photowall');
 });
 
+// ========== 個人相簿專屬頁面 ==========
+app.get('/user/:userId', (req, res) => {
+  const userId = req.params.userId;
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>我的相簿</title>
+        <script>
+            localStorage.setItem('userId', '${userId}');
+            window.location.href = '/photowall';
+        </script>
+    </head>
+    <body>載入中...</body>
+    </html>
+  `);
+});
+
 // ========== LINE Webhook ==========
 app.post('/webhook/:role', async (req, res) => {
-  // 立即回應 LINE，避免超時
   res.status(200).send('OK');
   
   const role = req.params.role;
@@ -302,7 +317,13 @@ app.post('/webhook/:role', async (req, res) => {
         
         if (imageUrl) {
           await savePhotoToSheet(userId, imageUrl, roleConfig.name, userMessage || '圖片分享');
-          await replyToUser(replyToken, `📸 照片已上傳到照片牆！\n\n👉 照片牆：https://fbtestbot.onrender.com/photowall`);
+          
+          // 回覆包含個人相簿專屬連結
+          const replyText = `📸 照片已上傳成功！\n\n` +
+            `🏠 全部照片牆：\nhttps://fbtestbot.onrender.com/photowall\n\n` +
+            `👤 你的個人相簿（可刪除照片）：\nhttps://fbtestbot.onrender.com/user/${userId}`;
+          
+          await replyToUser(replyToken, replyText);
           console.log(`   ✅ 完成！`);
         } else {
           await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
@@ -315,7 +336,7 @@ app.post('/webhook/:role', async (req, res) => {
         console.log(`   💬 用戶：${userMessage.substring(0, 50)}`);
         console.log(`   🤖 回應：${aiReply.substring(0, 50)}`);
       }
-      // 其他訊息（貼圖等）
+      // 其他訊息
       else if (replyToken) {
         await replyToUser(replyToken, roleConfig.welcome);
       }
@@ -328,44 +349,6 @@ app.post('/webhook/:role', async (req, res) => {
     }
   }
 });
-// ========== 刪除照片 API ==========
-app.delete('/api/photo/:rowIndex', async (req, res) => {
-  if (!googleSheetReady || !photosSheet) {
-    return res.status(503).json({ success: false, message: '服務未就緒' });
-  }
-  
-  try {
-    const rowIndex = parseInt(req.params.rowIndex);
-    const userId = req.query.userId;
-    
-    if (!userId) {
-      return res.status(401).json({ success: false, message: '未提供使用者識別' });
-    }
-    
-    const rows = await photosSheet.getRows();
-    
-    if (rowIndex >= rows.length) {
-      return res.status(404).json({ success: false, message: '找不到該筆照片' });
-    }
-    
-    const targetRow = rows[rowIndex];
-    const photoUserId = targetRow.get('使用者ID');
-    
-    if (photoUserId !== userId) {
-      return res.status(403).json({ success: false, message: '您只能刪除自己的照片' });
-    }
-    
-    await targetRow.delete();
-    console.log(`✅ 使用者 ${userId.substring(0,8)}... 已刪除照片`);
-    
-    res.json({ success: true, message: '照片已刪除' });
-    
-  } catch (error) {
-    console.error('❌ 刪除失敗：', error.message);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 
 // ========== 照片牆 API ==========
 
@@ -493,42 +476,45 @@ app.get('/api/users', async (req, res) => {
     res.json([]);
   }
 });
-// ========== 新增：刪除照片的 API ==========
-// 注意：這個端點沒有做嚴格的權限驗證，僅供你和管理員測試使用
-app.delete('/api/photo/:sheetId/:rowIndex', async (req, res) => {
-  // 一個簡單的密碼驗證，防止誤刪
-  const deletePassword = req.query.password;
-  const correctPassword = process.env.DELETE_PASSWORD; // 請在 Render 環境變數中設定 DELETE_PASSWORD
 
-  if (!correctPassword || deletePassword !== correctPassword) {
-    return res.status(401).json({ success: false, message: '密碼錯誤，無權限刪除' });
-  }
-
+// ========== 刪除照片 API ==========
+app.delete('/api/photo/:rowIndex', async (req, res) => {
   if (!googleSheetReady || !photosSheet) {
     return res.status(503).json({ success: false, message: '服務未就緒' });
   }
-
-  const { sheetId, rowIndex } = req.params;
   
   try {
-    // 注意：sheetId 和 rowIndex 需要前端傳過來，為了簡化，我們直接用 photosSheet
-    // 更穩健的方式是根據 sheetId 獲取對應的 sheet，這裡我們先假設操作的都是預設的 photosSheet
-    const rows = await photosSheet.getRows();
-    const targetRow = rows[parseInt(rowIndex)];
+    const rowIndex = parseInt(req.params.rowIndex);
+    const userId = req.query.userId;
     
-    if (!targetRow) {
-      return res.status(404).json({ success: false, message: '找不到該筆照片資料' });
+    if (!userId) {
+      return res.status(401).json({ success: false, message: '未提供使用者識別' });
     }
-
+    
+    const rows = await photosSheet.getRows();
+    
+    if (rowIndex >= rows.length) {
+      return res.status(404).json({ success: false, message: '找不到該筆照片' });
+    }
+    
+    const targetRow = rows[rowIndex];
+    const photoUserId = targetRow.get('使用者ID');
+    
+    if (photoUserId !== userId) {
+      return res.status(403).json({ success: false, message: '您只能刪除自己的照片' });
+    }
+    
     await targetRow.delete();
-    console.log(`✅ 已刪除照片 (行索引: ${rowIndex})`);
+    console.log(`✅ 使用者 ${userId.substring(0,8)}... 已刪除照片`);
+    
     res.json({ success: true, message: '照片已刪除' });
     
   } catch (error) {
-    console.error('❌ 刪除照片失敗：', error.message);
+    console.error('❌ 刪除失敗：', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
@@ -559,11 +545,6 @@ app.get('/test-google', async (req, res) => {
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
-});
-
-// 健康檢查
-app.get('/', (req, res) => {
-  res.status(200).send('OK');
 });
 
 // ========== 啟動伺服器 ==========
