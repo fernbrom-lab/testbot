@@ -30,11 +30,8 @@
         .photo-card:hover img { transform:scale(1.05); }
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent, rgba(0,0,0,0.7)); color:white; padding:40px 12px 12px; opacity:0; transition:opacity 0.3s; }
         .photo-card:hover .photo-overlay { opacity:1; }
-        .delete-btn, .set-avatar-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-        .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
-        .set-avatar-btn { right:50px; background:rgba(102,126,234,0.9); }
+        .delete-btn { position:absolute; top:10px; right:10px; background:rgba(255,68,68,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:18px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
-        .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
         .modal, .user-modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:auto; }
         .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
         .modal-image { width:100%; height:auto; border-radius:10px; }
@@ -42,6 +39,8 @@
         .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
         .user-modal-header { position:sticky; top:0; background:white; border-bottom:1px solid #dbdbdb; padding:15px 20px; display:flex; align-items:center; gap:15px; z-index:10; }
         .back-btn { background:none; border:none; font-size:24px; cursor:pointer; padding:8px; }
+        .user-modal-title { font-weight:bold; font-size:18px; }
+        .user-modal-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; padding:5px; width:100%; }
         .loading { text-align:center; padding:50px; color:#999; }
         .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
         .confirm-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; }
@@ -51,10 +50,13 @@
         .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
         .confirm-btn.confirm { background:#ff4444; color:white; }
         .confirm-btn.cancel { background:#ddd; }
-        @media (max-width:768px) {
+        @media (max-width: 768px) {
             .photo-grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
             .users-grid { grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
-            .delete-btn, .set-avatar-btn { width:28px; height:28px; font-size:14px; }
+            .user-modal-grid { grid-template-columns:repeat(2, 1fr) !important; }
+        }
+        @media (max-width: 480px) {
+            .user-modal-grid { grid-template-columns:repeat(2, 1fr) !important; }
         }
     </style>
 </head>
@@ -63,7 +65,7 @@
 <div class="container" id="mainContainer"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 <div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
-<div id="userModal" class="user-modal"><div class="user-modal-header"><button class="back-btn" onclick="closeUserModal()">← 返回</button><div class="user-modal-title" id="userModalTitle"></div></div><div id="userModalGrid"></div></div>
+<div id="userModal" class="user-modal"><div class="user-modal-header"><button class="back-btn" onclick="closeUserModal()">← 返回</button><div class="user-modal-title" id="userModalTitle"></div></div><div id="userModalGrid" class="user-modal-grid"></div></div>
 <div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 <script>
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
@@ -91,8 +93,6 @@ async function executeDelete() {
             alert('✅ 照片已刪除');
             const card = document.querySelector(`.photo-card[data-url="${imageUrl}"]`);
             if(card) card.remove();
-            const userPhoto = document.querySelector(`.user-modal-grid div[data-url="${imageUrl}"]`);
-            if(userPhoto) userPhoto.remove();
             if(refreshCallback) refreshCallback();
         } else alert('❌ 刪除失敗：'+result.message);
     } catch(e) { alert('❌ 刪除失敗：網路錯誤'); console.error(e); }
@@ -118,19 +118,15 @@ async function editDisplayName(userId, currentName) {
     }
 }
 function renderPhotoGrid(photos) {
-    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
+    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
     let html = '<div class="photo-grid">';
     photos.forEach(photo => {
-        const isOwner = currentUserId && photo.userId===currentUserId;
-        html += `<div class="photo-card" style="position:relative;" data-url="${photo.imageUrl}">`;
-        if(isOwner) {
-            html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>`;
-            // 注意：全部照片中不顯示刪除按鈕
-        }
-        html += `<div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
-                    <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                    <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭 ${photo.role||'未知'}</div><div>❤️ ${formatTime(photo.time)}</div></div>
-                </div></div>`;
+        html += `<div class="photo-card" style="position:relative;" data-url="${photo.imageUrl}">
+                    <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
+                        <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                        <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭 ${photo.role||'未知'}</div><div>❤️ ${formatTime(photo.time)}</div></div>
+                    </div>
+                </div>`;
     });
     html += '</div>';
     return html;
@@ -151,7 +147,7 @@ async function showUsers() {
             const displayName = user.displayName || truncateUserId(user.userId);
             html+=`<div class="user-card" style="position:relative;">
                         ${isSelf ? `<button class="edit-name-btn" onclick="event.stopPropagation(); editDisplayName('${user.userId}','${displayName}')">✏️</button>` : ''}
-                        <div onclick="showUserPhotos('${user.userId}','${user.role}')">
+                        <div onclick="showUserPhotos('${user.userId}','${user.role}','${user.displayName || ''}')">
                             <img class="user-avatar" src="${user.latestPhoto}" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${displayName}</div>
                             <div class="user-role">🎭 ${user.role||'未知角色'}</div>
@@ -175,32 +171,45 @@ async function showAllPhotos() {
         container.innerHTML=renderPhotoGrid(allPhotos);
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
-async function showUserPhotos(userId,role) {
-    const modalTitle=document.getElementById('userModalTitle');
-    modalTitle.innerHTML=`👤 ${truncateUserId(userId)} 的相簿 🎭 ${role||'未知角色'}`;
-    const grid=document.getElementById('userModalGrid');
-    grid.innerHTML='<div class="loading">📷 載入照片中...</div>';
-    userModal.style.display='block';
-    document.body.style.overflow='hidden';
+async function showUserPhotos(userId, role, displayName) {
+    const modalTitle = document.getElementById('userModalTitle');
+    const titleName = displayName || truncateUserId(userId);
+    modalTitle.innerHTML = `👤 ${titleName}的相簿🎭 `;
+    
+    const grid = document.getElementById('userModalGrid');
+    grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
+    
+    userModal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    
     try {
-        const res=await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos=await res.json();
-        if(!photos||photos.length===0) { grid.innerHTML='<div class="loading">📸 暫無照片</div>'; return; }
-        let html=`<div style="display:flex; flex-wrap:wrap; gap:5px; padding:10px;">`;
-        photos.forEach(photo=>{
-            const isOwner = currentUserId && photo.userId===currentUserId;
-            html+=`<div style="flex:1 1 calc(33.333%-10px); min-width:200px; aspect-ratio:1/1; overflow:hidden; position:relative; background:#f0f0f0; border-radius:8px;" data-url="${photo.imageUrl}">`;
-            if(isOwner) {
-                html+=`<button class="set-avatar-btn" style="display:flex; top:5px; right:5px;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>`;
-                html+=`<button class="delete-btn" style="display:flex; top:5px; right:45px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}','${photo.userId}',()=>showUserPhotos('${userId}','${role}'))">🗑️</button>`;
-            }
-            html+=`<div style="width:100%;height:100%;cursor:pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',true)">
-                        <img src="${photo.imageUrl}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                    </div></div>`;
+        const response = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+        const photos = await response.json();
+        
+        if (!photos || photos.length === 0) {
+            grid.innerHTML = '<div class="loading">📸 暫無照片</div>';
+            return;
+        }
+        
+        let html = `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 5px; width: 100%;">`;
+        photos.forEach((photo) => {
+            const isOwner = currentUserId && (photo.userId === currentUserId);
+            html += `
+                <div style="aspect-ratio: 1 / 1; overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;" data-url="${photo.imageUrl}">
+                    ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}'); })">🗑️</button>` : ''}
+                    <div style="width: 100%; height: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                        <img src="${photo.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" 
+                             loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                    </div>
+                </div>
+            `;
         });
-        html+='</div>';
-        grid.innerHTML=html;
-    } catch(e) { console.error(e); grid.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
+        html += '</div>';
+        grid.innerHTML = html;
+    } catch (error) {
+        console.error('載入照片失敗：', error);
+        grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
 }
 function closeUserModal() { userModal.style.display='none'; document.body.style.overflow='auto'; }
 function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false) {
