@@ -328,8 +328,44 @@ app.post('/webhook/:role', async (req, res) => {
     }
   }
 });
+// ========== 刪除照片 API ==========
+app.delete('/api/photo/:rowIndex', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) {
+    return res.status(503).json({ success: false, message: '服務未就緒' });
+  }
+  
+  try {
+    const rowIndex = parseInt(req.params.rowIndex);
+    const userId = req.query.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: '未提供使用者識別' });
+    }
+    
+    const rows = await photosSheet.getRows();
+    
+    if (rowIndex >= rows.length) {
+      return res.status(404).json({ success: false, message: '找不到該筆照片' });
+    }
+    
+    const targetRow = rows[rowIndex];
+    const photoUserId = targetRow.get('使用者ID');
+    
+    if (photoUserId !== userId) {
+      return res.status(403).json({ success: false, message: '您只能刪除自己的照片' });
+    }
+    
+    await targetRow.delete();
+    console.log(`✅ 使用者 ${userId.substring(0,8)}... 已刪除照片`);
+    
+    res.json({ success: true, message: '照片已刪除' });
+    
+  } catch (error) {
+    console.error('❌ 刪除失敗：', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
-// ========== 照片牆 API ==========
 
 // ========== 照片牆 API ==========
 
