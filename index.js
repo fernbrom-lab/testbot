@@ -362,7 +362,94 @@ app.get('/api/photos', async (req, res) => {
     res.status(500).json({ error: '讀取失敗', detail: error.message });
   }
 });
+// ========== 新增：取得特定使用者的照片 ==========
+app.get('/api/photos/user/:userId', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) {
+    return res.json([]);
+  }
+  
+  try {
+    const targetUserId = req.params.userId;
+    await photosSheet.loadHeaderRow();
+    const rows = await photosSheet.getRows();
+    
+    const photos = [];
+    for (const row of rows) {
+      const userId = row.get('使用者ID') || '';
+      const imageUrl = row.get('圖片URL') || '';
+      
+      // 只取該使用者的照片
+      if (userId !== targetUserId) continue;
+      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      
+      photos.push({
+        time: row.get('時間') || '',
+        userId: userId,
+        imageUrl: imageUrl,
+        role: row.get('角色') || '未知角色',
+        message: row.get('原始訊息') || ''
+      });
+    }
+    
+    photos.reverse();
+    console.log(`✅ 讀取使用者 ${targetUserId.substring(0,8)}... 的 ${photos.length} 張照片`);
+    res.json(photos);
+  } catch (error) {
+    console.error('❌ 讀取失敗：', error.message);
+    res.status(500).json({ error: '讀取失敗' });
+  }
+});
 
+// ========== 新增：取得所有使用者列表（用於頭像牆） ==========
+app.get('/api/users', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) {
+    return res.json([]);
+  }
+  
+  try {
+    await photosSheet.loadHeaderRow();
+    const rows = await photosSheet.getRows();
+    
+    const usersMap = new Map();
+    for (const row of rows) {
+      const userId = row.get('使用者ID') || '';
+      const imageUrl = row.get('圖片URL') || '';
+      const role = row.get('角色') || '';
+      
+      if (!userId || userId === 'test_user') continue;
+      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      
+      if (!usersMap.has(userId)) {
+        usersMap.set(userId, {
+          userId: userId,
+          role: role,
+          photoCount: 0,
+          latestPhoto: imageUrl,
+          latestTime: row.get('時間') || ''
+        });
+      }
+      
+      const user = usersMap.get(userId);
+      user.photoCount++;
+      
+      // 更新最新照片
+      const photoTime = row.get('時間') || '';
+      if (photoTime > user.latestTime) {
+        user.latestTime = photoTime;
+        user.latestPhoto = imageUrl;
+      }
+    }
+    
+    const users = Array.from(usersMap.values());
+    users.sort((a, b) => b.photoCount - a.photoCount);
+    
+    console.log(`✅ 讀取到 ${users.length} 位使用者`);
+    res.json(users);
+  } catch (error) {
+    console.error('❌ 讀取使用者失敗：', error.message);
+    res.json([]);
+  }
+});
 // 照片牆網頁
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
