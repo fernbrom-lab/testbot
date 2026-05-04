@@ -478,34 +478,54 @@ app.get('/api/users', async (req, res) => {
 });
 
 // ========== 刪除照片 API ==========
-app.delete('/api/photo/:rowIndex', async (req, res) => {
+// ========== 刪除照片 API（修復版：用圖片 URL 刪除） ==========
+app.delete('/api/photo', async (req, res) => {
   if (!googleSheetReady || !photosSheet) {
     return res.status(503).json({ success: false, message: '服務未就緒' });
   }
   
   try {
-    const rowIndex = parseInt(req.params.rowIndex);
+    const imageUrl = req.query.imageUrl;
     const userId = req.query.userId;
     
-    if (!userId) {
-      return res.status(401).json({ success: false, message: '未提供使用者識別' });
+    if (!userId || !imageUrl) {
+      return res.status(400).json({ success: false, message: '缺少必要參數' });
     }
     
+    console.log(`🔍 嘗試刪除照片 - 使用者: ${userId.substring(0,8)}...`);
+    console.log(`🔍 圖片網址: ${imageUrl.substring(0, 50)}...`);
+    
+    // 確保工作表已載入
+    await photosSheet.loadHeaderRow();
     const rows = await photosSheet.getRows();
     
-    if (rowIndex >= rows.length) {
+    console.log(`📊 總共 ${rows.length} 筆資料，開始搜尋...`);
+    
+    let targetRow = null;
+    let targetIndex = -1;
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowImageUrl = row.get('圖片URL');
+      const rowUserId = row.get('使用者ID');
+      
+      // 比對圖片 URL 和使用者 ID（兩者都要相符）
+      if (rowImageUrl === imageUrl && rowUserId === userId) {
+        targetRow = row;
+        targetIndex = i;
+        console.log(`✅ 找到目標照片，位於第 ${i} 行`);
+        break;
+      }
+    }
+    
+    if (!targetRow) {
+      console.log(`❌ 找不到相符的照片`);
       return res.status(404).json({ success: false, message: '找不到該筆照片' });
     }
     
-    const targetRow = rows[rowIndex];
-    const photoUserId = targetRow.get('使用者ID');
-    
-    if (photoUserId !== userId) {
-      return res.status(403).json({ success: false, message: '您只能刪除自己的照片' });
-    }
-    
+    // 執行刪除
     await targetRow.delete();
-    console.log(`✅ 使用者 ${userId.substring(0,8)}... 已刪除照片`);
+    console.log(`✅ 已刪除照片 (原行號: ${targetIndex})`);
     
     res.json({ success: true, message: '照片已刪除' });
     
@@ -514,7 +534,6 @@ app.delete('/api/photo/:rowIndex', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 // ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
