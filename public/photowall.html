@@ -31,10 +31,10 @@
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 照片網格 - 滿版無間隙 */
+        /* 照片網格 - 滿版無間隙，強制正方形 */
         .photo-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:0; background:#fff; }
-        .photo-card { position:relative; overflow:hidden; cursor:pointer; background:#f0f0f0; }
-        .photo-card img { width:100%; height:auto; display:block; transition:transform 0.3s; }
+        .photo-card { position:relative; overflow:hidden; cursor:pointer; background:#f0f0f0; aspect-ratio:1/1; }
+        .photo-card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform 0.3s; }
         .photo-card:hover img { transform:scale(1.02); }
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent, rgba(0,0,0,0.7)); color:white; padding:40px 12px 12px; opacity:0; transition:opacity 0.3s; }
         .photo-card:hover .photo-overlay { opacity:1; }
@@ -201,7 +201,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName} 的相簿 🎭 ${role || '未知角色'}`;
+    modalTitle.innerHTML = `👤 ${titleName}的相簿 🎭'}`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
@@ -259,7 +259,7 @@ usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
 newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
 
-setInterval(()=>{ if(currentView==='all') showAllPhotos(); },30000);
+setInterval(()=>{ if(currentView==='all') showAllPhotos(); },120000);
 showAllPhotos();
 </script>
 </body>
