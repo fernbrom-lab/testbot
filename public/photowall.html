@@ -595,7 +595,7 @@
 
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
-            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
+            modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 🎭 `;
             
             const grid = document.getElementById('userModalGrid');
             grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
