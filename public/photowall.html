@@ -28,7 +28,7 @@
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 照片網格 - 強制正方形填滿 */
+        /* 全部照片牆 - 強制正方形 */
         .photo-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:0; background:#fff; }
         .photo-card { position:relative; overflow:hidden; cursor:pointer; background:#f0f0f0; aspect-ratio:1/1; }
         .photo-card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform 0.3s; }
@@ -52,13 +52,14 @@
         .back-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:8px; color:#333; }
         .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
         
+        /* 個人相簿 - 手機直式，電腦正方形 */
         .user-modal-grid { display:flex; flex-direction:column; gap:5px; padding:10px; width:100%; }
         .user-modal-grid > div { width:100%; background:#f0f0f0; border-radius:8px; overflow:hidden; }
         .user-modal-grid img { width:100%; height:auto; display:block; }
         
         @media (min-width: 769px) {
             .user-modal-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
-            .user-modal-grid > div { width:auto; aspect-ratio:1/1; }
+            .user-modal-grid > div { aspect-ratio:1/1; }
             .user-modal-grid img { width:100%; height:100%; object-fit:cover; }
         }
         
@@ -193,7 +194,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤${titleName}的相簿 🎭`;
+    modalTitle.innerHTML = `👤 ${titleName}的相簿 🎭`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
