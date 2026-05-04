@@ -77,30 +77,47 @@ async function initGoogleSheets() {
 }
 
 // ========== Cloudinary 上傳圖片 ==========
-async function uploadToCloudinary(imageBuffer) {
-  console.log('☁️ 上傳到 Cloudinary...');
+// ========== Cloudinary 上傳圖片 (強化版 - 確保成功才回傳) ==========
+async function uploadToCloudinary(imageBuffer, retries = 3) {
+  console.log(`☁️ 上傳到 Cloudinary... (剩餘嘗試次數: ${retries})`);
   
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'linebot_photos',
-        timeout: 30000,
-      },
-      (error, result) => {
-        if (error) {
-          console.error('❌ Cloudinary 上傳失敗：', error.message);
-          reject(error);
-        } else {
-          console.log('✅ Cloudinary 上傳成功');
-          resolve(result.secure_url);
-        }
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'linebot_photos',
+            timeout: 30000,
+          },
+          (error, uploadResult) => {
+            if (error) {
+              return reject(error);
+            }
+            // 關鍵：確認 Cloudinary 真的有回傳 secure_url
+            if (uploadResult && uploadResult.secure_url) {
+              resolve(uploadResult);
+            } else {
+              reject(new Error('Cloudinary 未回傳圖片網址'));
+            }
+          }
+        );
+        uploadStream.end(imageBuffer);
+      });
+      
+      console.log(`✅ Cloudinary 上傳成功 (嘗試 ${attempt} 次)`);
+      return result.secure_url;
+      
+    } catch (error) {
+      console.error(`❌ Cloudinary 上傳失敗 (嘗試 ${attempt}/${retries}):`, error.message);
+      if (attempt === retries) {
+        return null; // 所有嘗試都失敗，回傳 null
       }
-    );
-    
-    uploadStream.end(imageBuffer);
-  });
+      // 等待 1 秒後重試
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return null;
 }
-
 // ========== 儲存圖片到 Google Sheets ==========
 async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
   if (!googleSheetReady || !photosSheet) {
