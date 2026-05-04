@@ -8,9 +8,8 @@
   "dependencies": {
     "express": "^4.18.2",
     "axios": "^1.4.0"
-      // ... 其他你原本有的套件 (例如 express, axios) ...
     "google-spreadsheet": "^4.1.1",
     "google-auth-library": "^9.0.0",
-    "path": "^0.12.7" // 這個通常Node.js內建，但加上確保沒問題
+    "path": "^0.12.7"
   }
 }
