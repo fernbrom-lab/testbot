@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>📸 回憶照片牆 - 像IG一樣的體驗</title>
+    <title>📸 回憶照片牆</title>
     <style>
         * {
             margin: 0;
@@ -15,6 +15,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #fafafa;
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
         /* 導航欄 */
@@ -52,7 +53,7 @@
         .nav-btn {
             background: none;
             border: none;
-            font-size: 20px;
+            font-size: 16px;
             cursor: pointer;
             padding: 8px 16px;
             border-radius: 20px;
@@ -68,14 +69,14 @@
             background: #f0f0f0;
         }
 
-        /* 容器 */
+        /* 主容器 */
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
 
-        /* 使用者網格（頭像牆） */
+        /* 使用者網格 */
         .users-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -126,10 +127,10 @@
             color: #999;
         }
 
-        /* 照片網格（IG風格） */
+        /* 照片網格 - 電腦版多排顯示 */
         .photo-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 4px;
             background: #fff;
         }
@@ -169,7 +170,7 @@
             opacity: 1;
         }
 
-        /* 彈窗（照片詳情） */
+        /* 照片詳情彈窗 */
         .modal {
             display: none;
             position: fixed;
@@ -219,7 +220,7 @@
             color: #bbb;
         }
 
-        /* 使用者彈窗 */
+        /* 使用者相簿彈窗 - 修復版：可滾動、多排顯示 */
         .user-modal {
             display: none;
             position: fixed;
@@ -229,6 +230,7 @@
             width: 100%;
             height: 100%;
             background-color: white;
+            overflow-y: auto;
             animation: slideUp 0.3s;
         }
 
@@ -257,21 +259,27 @@
             font-size: 18px;
         }
 
+        /* 關鍵修復：個人相簿網格 - 電腦版多排 + 可滾動 */
         .user-modal-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 4px;
             padding: 4px;
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
-        /* 載入動畫 */
+        /* 確保 body 不會鎖住滾動 */
+        body.modal-open {
+            overflow: hidden;
+        }
+
         .loading {
             text-align: center;
             padding: 50px;
             color: #999;
         }
 
-        /* 返回頂部按鈕 */
         .back-to-top {
             position: fixed;
             bottom: 30px;
@@ -299,8 +307,12 @@
             to { transform: translateY(0); }
         }
 
+        /* 平板和手機響應式 */
         @media (max-width: 768px) {
             .photo-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+            .user-modal-grid {
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
             .users-grid {
@@ -348,14 +360,13 @@
         let allPhotos = [];
         let currentView = 'all';
 
-        // 彈窗元素
         const photoModal = document.getElementById('photoModal');
         const modalImg = document.getElementById('modalImage');
         const modalInfo = document.getElementById('modalInfo');
         const userModal = document.getElementById('userModal');
         const backToTop = document.querySelector('.back-to-top');
 
-        // 關閉彈窗
+        // 關閉照片彈窗
         document.querySelector('.close').onclick = () => photoModal.style.display = "none";
         photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
 
@@ -392,7 +403,7 @@
             return userId;
         }
 
-        // 顯示全部照片（IG風格網格）
+        // 顯示全部照片
         function renderPhotoGrid(photos) {
             if (!photos || photos.length === 0) {
                 return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
@@ -415,7 +426,7 @@
             return html;
         }
 
-        // 顯示使用者列表
+        // 顯示成員列表
         async function showUsers() {
             currentView = 'users';
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -469,7 +480,7 @@
             }
         }
 
-        // 顯示特定使用者的照片
+        // 顯示特定使用者的照片（修復版：確保多排顯示 + 可滾動）
         async function showUserPhotos(userId, role) {
             const modalTitle = document.getElementById('userModalTitle');
             modalTitle.innerHTML = `👤 ${truncateUserId(userId)} 的相簿 🎭 ${role || '未知角色'}`;
@@ -489,17 +500,21 @@
                     return;
                 }
                 
-                let html = '<div class="photo-grid" style="gap: 4px;">';
+                // 使用與主照片牆相同的網格結構
+                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px; width: 100%;">';
                 photos.forEach(photo => {
                     html += `
-                        <div class="photo-card" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${photo.message?.replace(/'/g, "\\'") || ''}')">
-                            <img src="${photo.imageUrl}" alt="照片" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
+                        <div style="aspect-ratio: 1 / 1; overflow: hidden; cursor: pointer; background: #f0f0f0;" 
+                             onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${photo.message?.replace(/'/g, "\\'") || ''}')">
+                            <img src="${photo.imageUrl}" alt="照片" style="width: 100%; height: 100%; object-fit: cover;" 
+                                 loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
                         </div>
                     `;
                 });
                 html += '</div>';
                 grid.innerHTML = html;
             } catch (error) {
+                console.error('載入照片失敗：', error);
                 grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
             }
         }
@@ -520,12 +535,11 @@
             photoModal.style.display = 'block';
         }
 
-        // 點擊使用者彈窗外層關閉
         userModal.onclick = (e) => {
             if (e.target === userModal) closeUserModal();
         };
 
-        // 自動重新整理（每30秒）
+        // 定時重新整理
         setInterval(() => {
             if (currentView === 'all') showAllPhotos();
         }, 30000);
