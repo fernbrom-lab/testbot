@@ -606,20 +606,29 @@ app.delete('/api/messages/:messageId', async (req, res) => {
 });
 
 // ========== 新增回覆留言 API ==========
+// ========== 新增回覆留言 API（完整顯示引用內容） ==========
 app.post('/api/messages/reply', async (req, res) => {
     if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
     try {
         const { parentMessageId, targetUserId, senderId, content } = req.body;
         if (!parentMessageId || !content) return res.status(400).json({ error: '缺少必要參數' });
         
+        // 先找到原留言的內容
         const rows = await messagesSheet.getRows();
+        const parentMessage = rows.find(row => row.get('留言ID') == parentMessageId);
+        const parentContent = parentMessage ? parentMessage.get('留言內容') : '原留言已不存在';
+        const parentSender = parentMessage ? parentMessage.get('留言者ID') : 'unknown';
+        
         const newId = rows.length + 1;
+        
+        // 格式：🔁 回覆 @原留言者：「原留言內容」\n---\n新回覆內容
+        const replyContent = `🔁 回覆 @${parentSender}：「${parentContent.substring(0, 50)}${parentContent.length > 50 ? '…' : ''}」\n---\n${content}`;
         
         await messagesSheet.addRow({
             '留言ID': newId,
             '目標使用者ID': targetUserId,
             '留言者ID': senderId,
-            '留言內容': `🔁 回覆 #${parentMessageId}: ${content}`,
+            '留言內容': replyContent,
             '時間': new Date().toISOString(),
             '按讚數': 0,
             '父留言ID': parentMessageId
