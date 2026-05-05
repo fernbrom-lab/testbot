@@ -515,28 +515,51 @@ app.post('/api/user/profile', async (req, res) => {
 });
 
 // ========== 留言板 API ==========
+// ========== 留言板 API（含顯示名稱） ==========
 app.get('/api/messages/:userId', async (req, res) => {
-  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
-  try {
-    const targetUserId = req.params.userId;
-    const rows = await messagesSheet.getRows();
-    const messages = [];
-    for (const row of rows) {
-      if (row.get('目標使用者ID') === targetUserId) {
-        messages.push({
-          id: row.get('留言ID'),
-          senderId: row.get('留言者ID'),
-          content: row.get('留言內容'),
-          time: row.get('時間'),
-          likes: parseInt(row.get('按讚數')) || 0
-        });
-      }
+    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+    try {
+        const targetUserId = req.params.userId;
+        const rows = await messagesSheet.getRows();
+        
+        // 讀取使用者設定（用於將留言者ID轉換為顯示名稱）
+        let settingsMap = new Map();
+        if (settingsSheet) {
+            const settingsRows = await settingsSheet.getRows();
+            for (const row of settingsRows) {
+                const uid = row.get('使用者ID');
+                if (uid) {
+                    settingsMap.set(uid, {
+                        displayName: row.get('顯示名稱') || uid.substring(0, 8),
+                        avatarUrl: row.get('頭像URL') || ''
+                    });
+                }
+            }
+        }
+        
+        const messages = [];
+        for (const row of rows) {
+            if (row.get('目標使用者ID') === targetUserId) {
+                const senderId = row.get('留言者ID');
+                const senderInfo = settingsMap.get(senderId) || { displayName: senderId?.substring(0, 8), avatarUrl: '' };
+                
+                messages.push({
+                    id: row.get('留言ID'),
+                    senderId: senderId,
+                    senderName: senderInfo.displayName,
+                    senderAvatar: senderInfo.avatarUrl,
+                    content: row.get('留言內容'),
+                    time: row.get('時間'),
+                    likes: parseInt(row.get('按讚數')) || 0,
+                    parentId: row.get('父留言ID') || null
+                });
+            }
+        }
+        messages.reverse(); // 最新的在前
+        res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    messages.reverse();
-    res.json(messages);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 app.post('/api/messages', async (req, res) => {
@@ -606,23 +629,28 @@ app.delete('/api/messages/:messageId', async (req, res) => {
 });
 
 // ========== 新增回覆留言 API ==========
-// ========== 新增回覆留言 API（完整顯示引用內容） ==========
+// ========== 新增回覆留言 API ==========
 app.post('/api/messages/reply', async (req, res) => {
     if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
     try {
         const { parentMessageId, targetUserId, senderId, content } = req.body;
         if (!parentMessageId || !content) return res.status(400).json({ error: '缺少必要參數' });
         
-        // 先找到原留言的內容
         const rows = await messagesSheet.getRows();
         const parentMessage = rows.find(row => row.get('留言ID') == parentMessageId);
-        const parentContent = parentMessage ? parentMessage.get('留言內容') : '原留言已不存在';
-        const parentSender = parentMessage ? parentMessage.get('留言者ID') : 'unknown';
         
+        // 取得原留言者的顯示名稱
+        let parentSenderName = parentMessage?.get('留言者ID') || 'unknown';
+        if (settingsSheet) {
+            const settingsRows = await settingsSheet.getRows();
+            const parentSetting = settingsRows.find(row => row.get('使用者ID') === parentMessage?.get('留言者ID'));
+            if (parentSetting) parentSenderName = parentSetting.get('顯示名稱') || parentSenderName.substring(0, 8);
+        }
+        
+        const parentContent = parentMessage ? parentMessage.get('留言內容') : '原留言已不存在';
         const newId = rows.length + 1;
         
-        // 格式：🔁 回覆 @原留言者：「原留言內容」\n---\n新回覆內容
-        const replyContent = `🔁 回覆 @${parentSender}：「${parentContent.substring(0, 50)}${parentContent.length > 50 ? '…' : ''}」\n---\n${content}`;
+        const replyContent = `🔁 回覆 @${parentSenderName}：「${parentContent.substring(0, 50)}${parentContent.length > 50 ? '…' : ''}」\n---\n${content}`;
         
         await messagesSheet.addRow({
             '留言ID': newId,
