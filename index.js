@@ -251,7 +251,12 @@ app.post('/webhook/:role', async (req, res) => {
         const imageUrl = await uploadToCloudinary(imageResponse.data);
         if (imageUrl) {
           await savePhotoToSheet(userId, imageUrl, roleConfig.name, userMessage || '圖片分享');
-          await replyToUser(replyToken, `📸 照片已上傳成功！\n\n🏠 全部照片牆：\nhttps://fbtestbot.onrender.com/photowall\n\n👤進入後按右上🏠群組相簿👥群組所有人\n\n進入後可以改個人名稱\n\n進入個人相簿後可改頭貼刪除留言 `);
+         await replyToUser(replyToken, 
+  `📸 照片已上傳成功！\n\n` +
+  `🏠 全部照片牆（看所有人）：\nhttps://fbtestbot.onrender.com/photowall\n\n` +
+  `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://fbtestbot.onrender.com/user/${userId}\n\n` +
+  `💡 點「👥 成員」可以看到所有人，點頭像可留言`
+);
         } else {
           await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
         }
