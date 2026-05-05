@@ -283,7 +283,7 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     document.body.style.overflow = 'hidden';
     
     try {
-        // 1. 載入使用者個人資料（如果沒有從參數傳入，就從 API 抓）
+        // 1. 載入使用者個人資料
         let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
         try {
             const profileRes = await fetch(`/api/user/profile/${userId}`);
@@ -301,58 +301,60 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes.json();
         
-        // 組合 HTML
+        // 組合 HTML - 修正排版
         let html = `
-            <!-- 個人資料區 -->
-            <div style="background: white; padding: 20px; margin-bottom: 10px; border-radius: 12px; text-align: center;">
-                <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea;">
-                <h2 style="margin: 10px 0 5px;">${profile.displayName || titleName}</h2>
-                <p style="color: #666; font-size: 14px; white-space: pre-wrap;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
-                <div style="margin-top: 10px;">
-                    ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 5px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
-                    ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 5px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
+            <div style="padding: 0 10px;">
+                <!-- 個人資料區 -->
+                <div style="background: white; padding: 20px; margin-bottom: 12px; border-radius: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea; margin-bottom: 10px;">
+                    <h2 style="margin: 8px 0 4px; font-size: 20px;">${escapeHtml(profile.displayName || titleName)}</h2>
+                    <p style="color: #666; font-size: 13px; white-space: pre-wrap; margin: 8px 0;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
+                    <div style="margin-top: 8px;">
+                        ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F; font-size: 14px;">📷 Instagram</a>` : ''}
+                        ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2; font-size: 14px;">📘 Facebook</a>` : ''}
+                    </div>
+                    ${currentUserId === userId ? `
+                    <div style="margin-top: 15px;">
+                        <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-size: 14px;">✏️ 編輯個人資料</button>
+                    </div>
+                    ` : ''}
                 </div>
-                ${currentUserId === userId ? `
-                <div style="margin-top: 15px;">
-                    <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer;">✏️ 編輯個人資料</button>
-                </div>
-                ` : ''}
-            </div>
-            
-            <!-- 留言板區 -->
-            <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 12px;">
-                <h3 style="margin-bottom: 10px;">💬 留言板</h3>
-                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px;">
-                    <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer;">發送</button>
-                </div>
-                <div id="messagesList" style="max-height: 300px; overflow-y: auto;">
-                    ${messages.map(msg => `
-                        <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <strong>${truncateUserId(msg.senderId)}</strong>
-                                <span style="font-size: 12px; color: #999;">${formatTime(msg.time)}</span>
+                
+                <!-- 留言板區 -->
+                <div style="background: white; padding: 16px; margin-bottom: 12px; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <h3 style="margin-bottom: 12px; font-size: 18px;">💬 留言板</h3>
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; font-size: 14px; outline: none;">
+                        <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">發送</button>
+                    </div>
+                    <div id="messagesList" style="max-height: 250px; overflow-y: auto;">
+                        ${messages.map(msg => `
+                            <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
+                                    <span style="font-size: 11px; color: #999;">${formatTime(msg.time)}</span>
+                                </div>
+                                <div style="margin: 6px 0; font-size: 14px; color: #333;">${escapeHtml(msg.content)}</div>
+                                <div><button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer; font-size: 12px;">❤️ ${msg.likes || 0}</button></div>
                             </div>
-                            <div style="margin: 5px 0;">${escapeHtml(msg.content)}</div>
-                            <div><button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer;">❤️ ${msg.likes || 0}</button></div>
-                        </div>
-                    `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
+                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
+                    </div>
                 </div>
-            </div>
-            
-            <!-- 照片牆區 -->
-            <div style="background: white; border-radius: 12px; padding: 10px;">
-                <h3 style="margin-bottom: 10px; padding-left: 5px;">📸 相簿</h3>
-                <div class="user-photo-grid" style="column-count: 2; column-gap: 8px;">
-                    ${photos.map(photo => `
-                        <div style="break-inside: avoid; margin-bottom: 8px; position: relative;" data-url="${photo.imageUrl}">
-                            ${currentUserId === userId ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
-                            ${currentUserId === userId ? `<button class="set-avatar-btn" style="display: flex; top: 5px; right: 45px;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                            <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                                <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block; border-radius: 8px;" loading="lazy">
+                
+                <!-- 照片牆區 -->
+                <div style="background: white; border-radius: 16px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <h3 style="margin-bottom: 12px; font-size: 18px; padding-left: 4px;">📸 相簿</h3>
+                    <div style="column-count: 2; column-gap: 8px;">
+                        ${photos.map(photo => `
+                            <div style="break-inside: avoid; margin-bottom: 8px; position: relative; border-radius: 12px; overflow: hidden;">
+                                ${currentUserId === userId ? `<button class="delete-btn" style="position: absolute; top: 8px; right: 8px; background: rgba(255,68,68,0.9); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 14px; cursor: pointer; z-index: 5;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                                ${currentUserId === userId ? `<button class="set-avatar-btn" style="position: absolute; top: 8px; right: 46px; background: rgba(102,126,234,0.9); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 14px; cursor: pointer; z-index: 5;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                                <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                                    <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block;" loading="lazy">
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         `;
@@ -369,7 +371,6 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
-
 // ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
