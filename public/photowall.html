@@ -675,7 +675,7 @@ function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false) 
     modalImg.src=imageUrl;
     const isOwner = currentUserId && userId===currentUserId;
     const showDelete = fromUserModal && isOwner;
-    modalInfo.innerHTML=`<div>👤 ${truncateUserId(userId)}</div><div>🎭 ${role||'未知角色'}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    modalInfo.innerHTML=`<div>👤 ${truncateUserId(userId)}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
     photoModal.style.display='block';
 }
 function deleteCurrentPhoto(imageUrl,userId) {
