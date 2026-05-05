@@ -245,7 +245,7 @@ async function showUsers() {
             const displayName = user.displayName || truncateUserId(user.userId);
             html+=`<div class="user-card" style="position:relative;">
                         ${isSelf ? `<button class="edit-name-btn" onclick="event.stopPropagation(); editDisplayName('${user.userId}','${displayName}')">✏️</button>` : ''}
-                        <div onclick="showUserPhotos('${user.userId}','${user.role}','${user.displayName || ''}')">
+                        <div onclick="showUserPhotos('${user.userId}','${user.role}','${user.displayName || ''}','${user.bio || ''}','${user.ig || ''}','${user.fb || ''}')">
                             <img class="user-avatar" src="${user.latestPhoto}" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${displayName}</div>
                             <div class="user-role">🎭 ${user.role||'未知角色'}</div>
@@ -269,46 +269,157 @@ async function showAllPhotos() {
         container.innerHTML=renderPhotoGrid(allPhotos);
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
-async function showUserPhotos(userId, role, displayName) {
+
+// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
+async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName}的相簿 🎭`;
+    modalTitle.innerHTML = `👤 ${titleName} 的個人頁面 🎭 ${role || ''}`;
     
     const grid = document.getElementById('userModalGrid');
-    grid.innerHTML = '<div class="loading">📷 載入照片中...</div>';
+    grid.innerHTML = '<div class="loading">📷 載入中...</div>';
     
     userModal.style.display = 'block';
     document.body.style.overflow = 'hidden';
     
     try {
-        const response = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos = await response.json();
+        // 1. 載入使用者個人資料（如果沒有從參數傳入，就從 API 抓）
+        let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
+        try {
+            const profileRes = await fetch(`/api/user/profile/${userId}`);
+            const apiProfile = await profileRes.json();
+            if (apiProfile) {
+                profile = { ...profile, ...apiProfile };
+            }
+        } catch(e) { console.log('讀取個人資料失敗，使用預設值'); }
         
-        if (!photos || photos.length === 0) {
-            grid.innerHTML = '<div class="loading">📸 暫無照片</div>';
-            return;
+        // 2. 載入留言板
+        const messagesRes = await fetch(`/api/messages/${userId}`);
+        const messages = await messagesRes.json();
+        
+        // 3. 載入照片
+        const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+        const photos = await photoRes.json();
+        
+        // 組合 HTML
+        let html = `
+            <!-- 個人資料區 -->
+            <div style="background: white; padding: 20px; margin-bottom: 10px; border-radius: 12px; text-align: center;">
+                <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea;">
+                <h2 style="margin: 10px 0 5px;">${profile.displayName || titleName}</h2>
+                <p style="color: #666; font-size: 14px; white-space: pre-wrap;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
+                <div style="margin-top: 10px;">
+                    ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 5px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
+                    ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 5px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
+                </div>
+                ${currentUserId === userId ? `
+                <div style="margin-top: 15px;">
+                    <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer;">✏️ 編輯個人資料</button>
+                </div>
+                ` : ''}
+            </div>
+            
+            <!-- 留言板區 -->
+            <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 12px;">
+                <h3 style="margin-bottom: 10px;">💬 留言板</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                    <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px;">
+                    <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer;">發送</button>
+                </div>
+                <div id="messagesList" style="max-height: 300px; overflow-y: auto;">
+                    ${messages.map(msg => `
+                        <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <strong>${truncateUserId(msg.senderId)}</strong>
+                                <span style="font-size: 12px; color: #999;">${formatTime(msg.time)}</span>
+                            </div>
+                            <div style="margin: 5px 0;">${escapeHtml(msg.content)}</div>
+                            <div><button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer;">❤️ ${msg.likes || 0}</button></div>
+                        </div>
+                    `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
+                </div>
+            </div>
+            
+            <!-- 照片牆區 -->
+            <div style="background: white; border-radius: 12px; padding: 10px;">
+                <h3 style="margin-bottom: 10px; padding-left: 5px;">📸 相簿</h3>
+                <div class="user-photo-grid" style="column-count: 2; column-gap: 8px;">
+                    ${photos.map(photo => `
+                        <div style="break-inside: avoid; margin-bottom: 8px; position: relative;" data-url="${photo.imageUrl}">
+                            ${currentUserId === userId ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                            ${currentUserId === userId ? `<button class="set-avatar-btn" style="display: flex; top: 5px; right: 45px;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                            <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                                <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block; border-radius: 8px;" loading="lazy">
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        // 電腦版改為 3 欄
+        if (window.innerWidth >= 769) {
+            html = html.replace('column-count: 2;', 'column-count: 3;');
         }
         
-        let html = '';
-        photos.forEach((photo) => {
-            const isOwner = currentUserId && (photo.userId === currentUserId);
-            html += `
-                <div style="overflow: hidden; position: relative; background: #f0f0f0; border-radius: 8px;" data-url="${photo.imageUrl}">
-                    ${isOwner ? `<button class="delete-btn" style="display: flex; top: 5px; right: 5px;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}'); })">🗑️</button>` : ''}
-                    ${isOwner ? `<button class="set-avatar-btn" style="display: flex; top: 5px; right: 45px;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                    <div style="width: 100%; cursor: pointer;" onclick="event.stopPropagation(); showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                        <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block;" 
-                             loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                    </div>
-                </div>
-            `;
-        });
         grid.innerHTML = html;
+        
     } catch (error) {
-        console.error('載入照片失敗：', error);
+        console.error('載入失敗：', error);
         grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
+
+// ========== 輔助函數：編輯個人資料 ==========
+function editProfile(userId) {
+    const bio = prompt('請輸入自我介紹：');
+    if (bio !== null) {
+        fetch('/api/user/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId, bio: bio })
+        }).then(() => {
+            alert('個人資料已更新');
+            showUserPhotos(userId, '', '', bio, '', '');
+        }).catch(() => alert('更新失敗'));
+    }
+}
+
+// ========== 輔助函數：發送留言 ==========
+function postMessage(targetUserId) {
+    const input = document.getElementById('messageInput');
+    const content = input.value.trim();
+    if (!content) return alert('請輸入留言內容');
+    
+    fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId, senderId: currentUserId, content })
+    }).then(async res => {
+        const result = await res.json();
+        if (result.success) {
+            input.value = '';
+            // 刷新留言板
+            showUserPhotos(targetUserId, '', '', '', '', '');
+        } else {
+            alert('留言失敗');
+        }
+    }).catch(() => alert('留言失敗'));
+}
+
+// ========== 輔助函數：留言按讚 ==========
+function likeMessage(messageId) {
+    alert('按讚功能開發中！');
+}
+
+// ========== 輔助函數：HTML跳脫 ==========
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function closeUserModal() { userModal.style.display='none'; document.body.style.overflow='auto'; }
 function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false) {
     modalImg.src=imageUrl;
