@@ -415,14 +415,57 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         } catch(e) {}
         
         const messagesRes = await fetch(`/api/messages/${userId}`);
-        const messages = await messagesRes.json();
+        let allMessages = await messagesRes.json();
         
         const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes.json();
         
+        // 留言分頁：先顯示最新 5 則
+        let messagePage = 1;
+        const MESSAGES_PER_PAGE = 5;
+        
+        function renderMessages(page) {
+            const start = 0;
+            const end = page * MESSAGES_PER_PAGE;
+            const visibleMessages = allMessages.slice(start, end);
+            const hasMore = allMessages.length > end;
+            
+            let messagesHtml = '';
+            visibleMessages.forEach(msg => {
+                messagesHtml += `
+                    <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <div style="margin-bottom: 4px;">
+                                <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
+                                <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
+                            </div>
+                            <div style="font-size: 14px; color: #333; word-break: break-word;">${escapeHtml(msg.content)}</div>
+                        </div>
+                        <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
+                            <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ ${msg.likes || 0}</button>
+                            <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
+                            <button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (hasMore) {
+                messagesHtml += `
+                    <div style="text-align: center; padding: 10px;">
+                        <button onclick="loadMoreMessages()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px;">📖 載入更多留言</button>
+                    </div>
+                `;
+            }
+            
+            return messagesHtml;
+        }
+        
+        // 儲存渲染函數到全域，讓按鈕可以呼叫
+        window.currentMessagesData = { allMessages, userId, renderMessages, messagesContainer: null };
+        
         let html = `
             <div class="profile-messages-wrapper">
-                <!-- 左：個人資料區 -->
                 <div class="profile-section">
                     <div style="text-align: center;">
                         <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea; margin-bottom: 12px;">
@@ -440,29 +483,18 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
                     </div>
                 </div>
                 
-                <!-- 右：留言板區 -->
                 <div class="messages-section">
-                    <h3 style="margin-bottom: 12px; font-size: 16px;">💬 留言板</h3>
-                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 14px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <span style="font-size: 16px; font-weight: bold;">💬 留言板</span>
+                        <input type="text" id="messageInput" placeholder="寫下你的留言...(限50字元)" maxlength="50" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 14px;">
                         <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">發送</button>
                     </div>
                     <div id="messagesList" style="max-height: 400px; overflow-y: auto;">
-                        ${messages.map(msg => `
-                            <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
-                                    <span style="font-size: 11px; color: #999;">${formatTime(msg.time)}</span>
-                                </div>
-                                <div style="margin: 6px 0; font-size: 14px;">${escapeHtml(msg.content)}</div>
-                                <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer; font-size: 12px;">❤️ ${msg.likes || 0}</button>
-                            </div>
-                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
+                        ${renderMessages(1)}
                     </div>
                 </div>
             </div>
             
-            <!-- 照片牆區塊：無標題，直接瀑布流 -->
             <div class="user-photo-grid">
                 ${photos.map(photo => `
                     <div class="user-photo-card" data-url="${photo.imageUrl}">
@@ -478,11 +510,43 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         
         grid.innerHTML = html;
         
+        // 儲存參考
+        window.currentMessagesData.messagesContainer = document.getElementById('messagesList');
+        window.currentMessagesData.renderMessages = renderMessages;
+        window.currentMessagesData.loadMore = function() {
+            const currentPage = Math.ceil(window.currentMessagesData.messagesContainer.querySelectorAll('.message-item').length / MESSAGES_PER_PAGE) || 1;
+            const newHtml = renderMessages(currentPage + 1);
+            window.currentMessagesData.messagesContainer.innerHTML = newHtml;
+        };
+        
+        window.loadMoreMessages = function() {
+            if (window.currentMessagesData.loadMore) {
+                window.currentMessagesData.loadMore();
+            }
+        };
+        
     } catch (error) {
         console.error('載入失敗：', error);
         grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
+// ========== 留言回覆功能 ==========
+function replyToMessage(messageId, targetUserId) {
+    const replyContent = prompt('輸入回覆內容：');
+    if (replyContent && replyContent.trim()) {
+        // 這裡可以實作回覆 API
+        alert('回覆功能開發中！留言內容：' + replyContent);
+        // 未來可呼叫 API: fetch('/api/messages/reply', { ... })
+    }
+}
+
+// ========== 刪除留言 ==========
+function deleteMessage(messageId) {
+    if (confirm('確定要刪除這則留言嗎？')) {
+        alert('刪除功能開發中！留言 ID：' + messageId);
+        // 未來可呼叫 API: fetch('/api/messages/delete', { ... })
+    }
+}    
 // ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
