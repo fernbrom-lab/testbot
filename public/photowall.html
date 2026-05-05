@@ -554,7 +554,7 @@ usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
 newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
 
-setInterval(()=>{ if(currentView==='all') showAllPhotos(); },60000);
+setInterval(()=>{ if(currentView==='all') showAllPhotos(); },6000000);
 showAllPhotos();
 </script>
 </body>
