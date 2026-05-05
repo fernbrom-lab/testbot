@@ -433,22 +433,22 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     let messagesHtml = '';
     visibleMessages.forEach(msg => {
         const isOwner = currentUserId === msg.senderId;
-        messagesHtml += `
-            <div class="message-item" data-message-id="${msg.id}" style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
-                <div style="flex: 1;">
-                    <div style="margin-bottom: 4px;">
-                        <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
-                        <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
-                    </div>
-                    <div style="font-size: 14px; color: #333; word-break: break-word;">${escapeHtml(msg.content)}</div>
-                </div>
-                <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
-                    <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ <span class="like-count-${msg.id}">${msg.likes || 0}</span></button>
-                    <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
-                    ${isOwner ? `<button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>` : ''}
-                </div>
+       messagesHtml += `
+    <div class="message-item" data-message-id="${msg.id}" style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div style="flex: 1;">
+            <div style="margin-bottom: 4px;">
+                <strong style="font-size: 13px;">${escapeHtml(msg.senderName)}</strong>
+                <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
             </div>
-        `;
+            <div style="font-size: 14px; color: #333; word-break: break-word; white-space: pre-wrap;">${escapeHtml(msg.content)}</div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
+            <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ <span class="like-count-${msg.id}">${msg.likes || 0}</span></button>
+            <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
+            ${currentUserId === msg.senderId ? `<button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>` : ''}
+        </div>
+    </div>
+`;
     });
     
     if (hasMore) {
