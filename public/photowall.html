@@ -292,6 +292,7 @@
 <div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 <script>
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+let userNameMap = new Map();  // 儲存 userId -> 顯示名稱    
 let currentUserId = localStorage.getItem('userId');
 if(!currentUserId) console.log('⚠️ 未登入，只能瀏覽');
 
@@ -343,10 +344,15 @@ function renderPhotoGrid(photos) {
     if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
     let html = '<div class="photo-grid">';
     photos.forEach(photo => {
+        // 優先使用顯示名稱，沒有則用截短的 userId
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭</div><div>❤️ ${formatTime(photo.time)}</div></div>
+                        <div class="photo-overlay">
+                            <div>👤 ${displayName}</div>
+                            <div>❤️ ${formatTime(photo.time)}</div>
+                        </div>
                     </div>
                 </div>`;
     });
@@ -387,12 +393,24 @@ async function showAllPhotos() {
     const container=document.getElementById('mainContainer');
     container.innerHTML='<div class="loading">📷 載入照片中...</div>';
     try {
-        const res=await fetch('/api/photos');
-        allPhotos=await res.json();
-        container.innerHTML=renderPhotoGrid(allPhotos);
-    } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
+        // 先載入使用者列表（取得顯示名稱對照表）
+        const usersRes = await fetch('/api/users');
+        const users = await usersRes.json();
+        userNameMap.clear();
+        users.forEach(user => {
+            if (user.userId && user.displayName) {
+                userNameMap.set(user.userId, user.displayName);
+            }
+        });
+        
+        // 再載入照片
+        const res = await fetch('/api/photos');
+        allPhotos = await res.json();
+        container.innerHTML = renderPhotoGrid(allPhotos);
+    } catch(e) { 
+        container.innerHTML='<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
-
 // ========== 新版 showUserPhotos（含個人資料、留言板） ==========
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
