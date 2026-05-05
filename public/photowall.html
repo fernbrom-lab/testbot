@@ -424,43 +424,43 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         let messagePage = 1;
         const MESSAGES_PER_PAGE = 3;
         
-        function renderMessages(page) {
-            const start = 0;
-            const end = page * MESSAGES_PER_PAGE;
-            const visibleMessages = allMessages.slice(start, end);
-            const hasMore = allMessages.length > end;
-            
-            let messagesHtml = '';
-            visibleMessages.forEach(msg => {
-                messagesHtml += `
-                    <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div style="flex: 1;">
-                            <div style="margin-bottom: 4px;">
-                                <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
-                                <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
-                            </div>
-                            <div style="font-size: 14px; color: #333; word-break: break-word;">${escapeHtml(msg.content)}</div>
-                        </div>
-                        <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
-                            <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ ${msg.likes || 0}</button>
-                            <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
-                            <button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>
-                        </div>
+       function renderMessages(page) {
+    const start = 0;
+    const end = page * MESSAGES_PER_PAGE;
+    const visibleMessages = allMessages.slice(start, end);
+    const hasMore = allMessages.length > end;
+    
+    let messagesHtml = '';
+    visibleMessages.forEach(msg => {
+        const isOwner = currentUserId === msg.senderId;
+        messagesHtml += `
+            <div class="message-item" data-message-id="${msg.id}" style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex: 1;">
+                    <div style="margin-bottom: 4px;">
+                        <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
+                        <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
                     </div>
-                `;
-            });
-            
-            if (hasMore) {
-                messagesHtml += `
-                    <div style="text-align: center; padding: 10px;">
-                        <button onclick="loadMoreMessages()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px;">📖 載入更多留言</button>
-                    </div>
-                `;
-            }
-            
-            return messagesHtml;
-        }
-        
+                    <div style="font-size: 14px; color: #333; word-break: break-word;">${escapeHtml(msg.content)}</div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
+                    <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ <span class="like-count-${msg.id}">${msg.likes || 0}</span></button>
+                    <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
+                    ${isOwner ? `<button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    if (hasMore) {
+        messagesHtml += `
+            <div style="text-align: center; padding: 10px;">
+                <button onclick="loadMoreMessages()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px;">📖 載入更多留言</button>
+            </div>
+        `;
+    }
+    
+    return messagesHtml;
+}
         // 儲存渲染函數到全域，讓按鈕可以呼叫
         window.currentMessagesData = { allMessages, userId, renderMessages, messagesContainer: null };
         
@@ -531,22 +531,64 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     }
 }
 // ========== 留言回覆功能 ==========
-function replyToMessage(messageId, targetUserId) {
-    const replyContent = prompt('輸入回覆內容：');
-    if (replyContent && replyContent.trim()) {
-        // 這裡可以實作回覆 API
-        alert('回覆功能開發中！留言內容：' + replyContent);
-        // 未來可呼叫 API: fetch('/api/messages/reply', { ... })
+async function replyToMessage(parentMessageId, targetUserId) {
+    const content = prompt('輸入回覆內容：');
+    if (!content || !content.trim()) return;
+    if (content.length > 200) {
+        alert('回覆內容不能超過 200 字');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/messages/reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                parentMessageId,
+                targetUserId,
+                senderId: currentUserId,
+                content: content.trim()
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('回覆成功！');
+            // 重新載入留言板
+            if (window.currentMessagesData && window.currentMessagesData.userId) {
+                showUserPhotos(window.currentMessagesData.userId, '', '', '', '', '');
+            }
+        } else {
+            alert('回覆失敗');
+        }
+    } catch(e) {
+        console.error('回覆失敗', e);
+        alert('回覆失敗，請稍後再試');
     }
 }
 
 // ========== 刪除留言 ==========
-function deleteMessage(messageId) {
-    if (confirm('確定要刪除這則留言嗎？')) {
-        alert('刪除功能開發中！留言 ID：' + messageId);
-        // 未來可呼叫 API: fetch('/api/messages/delete', { ... })
+async function deleteMessage(messageId) {
+    if (!confirm('確定要刪除這則留言嗎？')) return;
+    
+    try {
+        const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`, {
+            method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('留言已刪除');
+            // 重新載入留言板
+            if (window.currentMessagesData && window.currentMessagesData.userId) {
+                showUserPhotos(window.currentMessagesData.userId, '', '', '', '', '');
+            }
+        } else {
+            alert('刪除失敗');
+        }
+    } catch(e) {
+        console.error('刪除失敗', e);
+        alert('刪除失敗，請稍後再試');
     }
-}    
+}
 // ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
@@ -567,6 +609,7 @@ function postMessage(targetUserId) {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
     if (!content) return alert('請輸入留言內容');
+    if (content.length > 50) return alert('留言不能超過 50 個字');
     
     fetch('/api/messages', {
         method: 'POST',
@@ -576,7 +619,6 @@ function postMessage(targetUserId) {
         const result = await res.json();
         if (result.success) {
             input.value = '';
-            // 刷新留言板
             showUserPhotos(targetUserId, '', '', '', '', '');
         } else {
             alert('留言失敗');
@@ -585,8 +627,22 @@ function postMessage(targetUserId) {
 }
 
 // ========== 輔助函數：留言按讚 ==========
-function likeMessage(messageId) {
-    alert('按讚功能開發中！');
+async function likeMessage(messageId) {
+    try {
+        const res = await fetch('/api/messages/like', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messageId, userId: currentUserId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const likeSpan = document.querySelector(`.like-count-${messageId}`);
+            if (likeSpan) likeSpan.textContent = data.likes;
+        }
+    } catch(e) {
+        console.error('按讚失敗', e);
+        alert('按讚失敗，請稍後再試');
+    }
 }
 
 // ========== 輔助函數：HTML跳脫 ==========
