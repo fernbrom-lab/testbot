@@ -394,7 +394,7 @@ async function showAllPhotos() {
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
 
- ========== 新版 showUserPhotos（含個人資料、留言板） ==========
+// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
