@@ -346,7 +346,7 @@ function renderPhotoGrid(photos) {
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭 ${photo.role||'未知'}</div><div>❤️ ${formatTime(photo.time)}</div></div>
+                        <div class="photo-overlay"><div>👤 ${truncateUserId(photo.userId)}</div><div>🎭</div><div>❤️ ${formatTime(photo.time)}</div></div>
                     </div>
                 </div>`;
     });
@@ -372,7 +372,6 @@ async function showUsers() {
                         <div onclick="showUserPhotos('${user.userId}','${user.role}','${user.displayName || ''}','${user.bio || ''}','${user.ig || ''}','${user.fb || ''}')">
                             <img class="user-avatar" src="${user.latestPhoto}" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${displayName}</div>
-                            <div class="user-role">🎭 ${user.role||'未知角色'}</div>
                             <div class="user-count">📸 ${user.photoCount} 張照片</div>
                         </div>
                     </div>`;
@@ -398,7 +397,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName} 的個人頁面 🎭 ${role || ''}`;
+    modalTitle.innerHTML = `👤 ${titleName}的個人頁面 🎭`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入中...</div>';
