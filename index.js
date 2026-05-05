@@ -564,7 +564,72 @@ app.post('/api/messages', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// ========== 留言按讚 API ==========
+app.post('/api/messages/like', async (req, res) => {
+    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+    try {
+        const { messageId, userId } = req.body;
+        if (!messageId) return res.status(400).json({ error: '缺少留言ID' });
+        
+        const rows = await messagesSheet.getRows();
+        const targetRow = rows.find(row => row.get('留言ID') == messageId);
+        
+        if (!targetRow) return res.status(404).json({ error: '留言不存在' });
+        
+        const currentLikes = parseInt(targetRow.get('按讚數')) || 0;
+        targetRow.set('按讚數', currentLikes + 1);
+        await targetRow.save();
+        
+        res.json({ success: true, likes: currentLikes + 1 });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
+// ========== 刪除留言 API ==========
+app.delete('/api/messages/:messageId', async (req, res) => {
+    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+    try {
+        const messageId = req.params.messageId;
+        const userId = req.query.userId;
+        
+        const rows = await messagesSheet.getRows();
+        const targetRow = rows.find(row => row.get('留言ID') == messageId);
+        
+        if (!targetRow) return res.status(404).json({ error: '留言不存在' });
+        
+        await targetRow.delete();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== 新增回覆留言 API ==========
+app.post('/api/messages/reply', async (req, res) => {
+    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+    try {
+        const { parentMessageId, targetUserId, senderId, content } = req.body;
+        if (!parentMessageId || !content) return res.status(400).json({ error: '缺少必要參數' });
+        
+        const rows = await messagesSheet.getRows();
+        const newId = rows.length + 1;
+        
+        await messagesSheet.addRow({
+            '留言ID': newId,
+            '目標使用者ID': targetUserId,
+            '留言者ID': senderId,
+            '留言內容': `🔁 回覆 #${parentMessageId}: ${content}`,
+            '時間': new Date().toISOString(),
+            '按讚數': 0,
+            '父留言ID': parentMessageId
+        });
+        
+        res.json({ success: true, messageId: newId });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 // ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
