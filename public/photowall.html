@@ -28,134 +28,226 @@
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 全部照片牆 - 強制正方形 */
         /* 全部照片牆 - 瀑布流版 */
-.photo-grid {
-    column-count: 4; /* 電腦版預設 4 欄 */
-    column-gap: 10px; /* 欄位間距 */
-    padding: 10px;
-    background: #fff;
-}
-
-.photo-card {
-    display: inline-block; /* 必須設定，防止內容跨欄中斷 */
-    width: 100%;
-    margin-bottom: 10px; /* 照片之間的上下間距 */
-    position: relative;
-    cursor: pointer;
-    background: #f0f0f0;
-    border-radius: 8px;
-    overflow: hidden;
-    break-inside: avoid; /* 防止在瀑布流中被切斷 */
-}
-
-.photo-card img {
-    width: 100%;
-    height: auto; /* 保持原始比例 */
-    display: block;
-}
-
-/* 響應式調整：手機版改為 2 欄 */
-@media (max-width: 768px) {
-    .photo-grid {
-        column-count: 2;
-        column-gap: 8px;
-        padding: 8px;
-    }
-    .photo-card {
-        margin-bottom: 8px;
-    }
-}
-
-/* 額外優化：懸浮效果 */
-.photo-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(transparent, rgba(0,0,0,0.8));
-    color: white;
-    padding: 20px 10px 10px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-    font-size: 13px;
-}
-        .delete-btn { position:absolute; top:10px; right:10px; background:rgba(255,68,68,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:18px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-        .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
+        .photo-grid {
+            column-count: 4;
+            column-gap: 10px;
+            padding: 10px;
+            background: #fff;
+        }
         
-        .set-avatar-btn { position:absolute; top:10px; right:50px; background:rgba(102,126,234,0.9); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-        .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
+        .photo-card {
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 10px;
+            position: relative;
+            cursor: pointer;
+            background: #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+            break-inside: avoid;
+        }
         
-        .modal, .user-modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:auto; }
-        .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
-        .modal-image { width:100%; height:auto; border-radius:10px; }
-        .modal-info { color:white; padding:15px; text-align:center; }
-        .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
+        .photo-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
         
-        .user-modal-header { position:sticky; top:0; background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; gap:15px; z-index:10; }
-        .back-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:8px; color:#333; }
-        .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
+        .photo-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: white;
+            padding: 20px 10px 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            font-size: 13px;
+        }
         
-        /* 個人相簿 - 手機直式，電腦正方形 */
-       /* --- 個人相簿瀑布流修正 --- */
-
-/* 1. 基礎容器設定：手機版預設 2 欄 */
-.user-modal-grid {
-    display: block;      /* 確保不是 flex 或 grid */
-    column-count: 2;     /* 手機版 2 欄 */
-    column-gap: 8px;     /* 左右間距 */
-    padding: 10px;
-    width: 100%;
-}
-
-/* 2. 修正每一張照片的容器 */
-.user-modal-grid > div {
-    display: inline-block; /* 必須設定 */
-    width: 100%;
-    margin-bottom: 8px;    /* 上下間距 */
-    break-inside: avoid;   /* 防止照片被切斷 */
-    background: #f0f0f0;   /* 預載入色塊 */
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
-}
-
-/* 3. 確保圖片完整呈現且不留白 */
-.user-modal-grid img {
-    width: 100% !important;
-    height: auto !important; /* 強制自動高度，不強迫正方形 */
-    display: block;
-    object-fit: contain;     /* 或者改回預設，確保不被強行裁切 */
-}
-
-/* 4. 電腦版響應式調整：改為 3 欄 */
-@media (min-width: 769px) {
-    .user-modal-grid {
-        column-count: 3;     /* 電腦版 3 欄 */
-        column-gap: 12px;
-    }
-    .user-modal-grid > div {
-        margin-bottom: 12px;
-        /* 移除原本的 aspect-ratio: 1/1; */
-    }
-}
+        .photo-card:hover .photo-overlay {
+            opacity: 1;
+        }
         
-        .loading { text-align:center; padding:50px; color:#999; }
-        .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
-        .confirm-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; }
-        .confirm-dialog { background:white; border-radius:12px; padding:20px; width:300px; text-align:center; }
-        .confirm-dialog p { margin-bottom:20px; }
-        .confirm-buttons { display:flex; gap:10px; justify-content:center; }
-        .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
-        .confirm-btn.confirm { background:#ff4444; color:white; }
-        .confirm-btn.cancel { background:#ddd; }
+        /* 刪除和設頭像按鈕共用樣式 */
+        .delete-btn, .set-avatar-btn {
+            position: absolute;
+            top: 10px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
         
+        .delete-btn { right: 10px; background: rgba(255,68,68,0.9); }
+        .delete-btn:hover { background: #ff4444; transform: scale(1.05); }
+        
+        .set-avatar-btn { right: 50px; background: rgba(102,126,234,0.9); }
+        .set-avatar-btn:hover { background: #667eea; transform: scale(1.05); }
+        
+        /* 彈窗共用 */
+        .modal, .user-modal {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.95);
+            z-index: 1000;
+            overflow: auto;
+        }
+        
+        .modal-content {
+            position: relative;
+            margin: auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 800px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .modal-image { width: 100%; height: auto; border-radius: 10px; }
+        .modal-info { color: white; padding: 15px; text-align: center; }
+        .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; }
+        
+        /* 個人相簿彈窗標題欄 */
+        .user-modal-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 10;
+        }
+        
+        .back-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 8px; color: #333; }
+        .user-modal-title { font-weight: bold; font-size: 18px; color: #333; }
+        
+        /* 個人相簿 - 主容器：正常垂直排列 */
+        .user-modal-grid {
+            display: block;
+            padding: 12px;
+            width: 100%;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+        
+        /* 照片牆區塊：只在這裡使用瀑布流 */
+        .user-photo-grid {
+            column-count: 2;
+            column-gap: 8px;
+        }
+        
+        /* 照片卡片樣式 */
+        .user-photo-card {
+            break-inside: avoid;
+            margin-bottom: 8px;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+        
+        .user-photo-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* 電腦版瀑布流改為 3 欄 */
+        @media (min-width: 769px) {
+            .photo-grid { column-count: 3; column-gap: 12px; }
+            .user-photo-grid { column-count: 3; column-gap: 12px; }
+            .user-photo-card { margin-bottom: 12px; }
+        }
+        
+        /* 個人相簿中按鈕位置微調 */
+        .user-photo-card .delete-btn,
+        .user-photo-card .set-avatar-btn {
+            position: absolute;
+            top: 8px;
+            z-index: 5;
+        }
+        
+        .user-photo-card .delete-btn { right: 8px; }
+        .user-photo-card .set-avatar-btn { right: 46px; }
+        
+        /* 載入中 */
+        .loading { text-align: center; padding: 50px; color: #999; }
+        
+        /* 回到頂部 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 100;
+        }
+        
+        /* 確認對話框 */
+        .confirm-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .confirm-dialog {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+        }
+        
+        .confirm-dialog p { margin-bottom: 20px; }
+        
+        .confirm-buttons { display: flex; gap: 10px; justify-content: center; }
+        .confirm-btn { padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; }
+        .confirm-btn.confirm { background: #ff4444; color: white; }
+        .confirm-btn.cancel { background: #ddd; color: #333; }
+        
+        /* 手機版響應式 */
         @media (max-width: 768px) {
-            .photo-grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
-            .users-grid { grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
-            .delete-btn, .set-avatar-btn { width:28px; height:28px; font-size:14px; }
-            .set-avatar-btn { right:42px; }
+            .photo-grid { column-count: 2; column-gap: 8px; padding: 8px; }
+            .photo-card { margin-bottom: 8px; }
+            .users-grid { grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); }
+            .delete-btn, .set-avatar-btn { width: 28px; height: 28px; font-size: 14px; }
+            .set-avatar-btn { right: 42px; }
+            .user-modal-grid { padding: 8px; }
+            .user-photo-grid { column-count: 2; column-gap: 6px; }
         }
     </style>
 </head>
@@ -270,7 +362,6 @@ async function showAllPhotos() {
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
 
-// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
@@ -283,74 +374,70 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     document.body.style.overflow = 'hidden';
     
     try {
-        // 1. 載入使用者個人資料
+        // 載入資料...
         let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
         try {
             const profileRes = await fetch(`/api/user/profile/${userId}`);
             const apiProfile = await profileRes.json();
-            if (apiProfile) {
-                profile = { ...profile, ...apiProfile };
-            }
-        } catch(e) { console.log('讀取個人資料失敗，使用預設值'); }
+            if (apiProfile) profile = { ...profile, ...apiProfile };
+        } catch(e) {}
         
-        // 2. 載入留言板
         const messagesRes = await fetch(`/api/messages/${userId}`);
         const messages = await messagesRes.json();
         
-        // 3. 載入照片
         const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes.json();
         
-        // 組合 HTML - 修正排版
+        // 正確的 HTML 結構：三個區塊垂直排列
         let html = `
-            <div style="padding: 0 10px;">
-                <!-- 個人資料區 -->
+            <div style="padding: 12px;">
+                <!-- 1. 個人資料區（正常塊級） -->
                 <div style="background: white; padding: 20px; margin-bottom: 12px; border-radius: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea; margin-bottom: 10px;">
+                    <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea;">
                     <h2 style="margin: 8px 0 4px; font-size: 20px;">${escapeHtml(profile.displayName || titleName)}</h2>
-                    <p style="color: #666; font-size: 13px; white-space: pre-wrap; margin: 8px 0;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
+                    <p style="color: #666; font-size: 13px;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
                     <div style="margin-top: 8px;">
-                        ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F; font-size: 14px;">📷 Instagram</a>` : ''}
-                        ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2; font-size: 14px;">📘 Facebook</a>` : ''}
+                        ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
+                        ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
                     </div>
                     ${currentUserId === userId ? `
                     <div style="margin-top: 15px;">
-                        <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-size: 14px;">✏️ 編輯個人資料</button>
+                        <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">✏️ 編輯個人資料</button>
                     </div>
                     ` : ''}
                 </div>
                 
-                <!-- 留言板區 -->
+                <!-- 2. 留言板區（正常塊級） -->
                 <div style="background: white; padding: 16px; margin-bottom: 12px; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <h3 style="margin-bottom: 12px; font-size: 18px;">💬 留言板</h3>
+                    <h3 style="margin-bottom: 12px;">💬 留言板</h3>
                     <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; font-size: 14px; outline: none;">
+                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; outline: none;">
                         <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">發送</button>
                     </div>
                     <div id="messagesList" style="max-height: 250px; overflow-y: auto;">
                         ${messages.map(msg => `
                             <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
-                                    <span style="font-size: 11px; color: #999;">${formatTime(msg.time)}</span>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <strong>${truncateUserId(msg.senderId)}</strong>
+                                    <span style="font-size: 12px; color: #999;">${formatTime(msg.time)}</span>
                                 </div>
-                                <div style="margin: 6px 0; font-size: 14px; color: #333;">${escapeHtml(msg.content)}</div>
-                                <div><button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer; font-size: 12px;">❤️ ${msg.likes || 0}</button></div>
+                                <div style="margin: 6px 0;">${escapeHtml(msg.content)}</div>
+                                <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer;">❤️ ${msg.likes || 0}</button>
                             </div>
-                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
+                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言</div>'}
                     </div>
                 </div>
                 
-                <!-- 照片牆區 -->
+                <!-- 3. 照片牆區（使用瀑布流） -->
                 <div style="background: white; border-radius: 16px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <h3 style="margin-bottom: 12px; font-size: 18px; padding-left: 4px;">📸 相簿</h3>
-                    <div style="column-count: 2; column-gap: 8px;">
+                    <h3 style="margin-bottom: 12px;">📸 相簿</h3>
+                    <div class="user-photo-grid">
                         ${photos.map(photo => `
-                            <div style="break-inside: avoid; margin-bottom: 8px; position: relative; border-radius: 12px; overflow: hidden;">
-                                ${currentUserId === userId ? `<button class="delete-btn" style="position: absolute; top: 8px; right: 8px; background: rgba(255,68,68,0.9); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 14px; cursor: pointer; z-index: 5;" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
-                                ${currentUserId === userId ? `<button class="set-avatar-btn" style="position: absolute; top: 8px; right: 46px; background: rgba(102,126,234,0.9); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 14px; cursor: pointer; z-index: 5;" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                            <div class="user-photo-card" data-url="${photo.imageUrl}">
+                                ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                                ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
                                 <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                                    <img src="${photo.imageUrl}" style="width: 100%; height: auto; display: block;" loading="lazy">
+                                    <img src="${photo.imageUrl}" loading="lazy">
                                 </div>
                             </div>
                         `).join('')}
@@ -359,18 +446,14 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
             </div>
         `;
         
-        // 電腦版改為 3 欄
-        if (window.innerWidth >= 769) {
-            html = html.replace('column-count: 2;', 'column-count: 3;');
-        }
-        
         grid.innerHTML = html;
         
     } catch (error) {
         console.error('載入失敗：', error);
         grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
-}
+}// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
+
 // ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
