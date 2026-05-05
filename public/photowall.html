@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>📸 回憶照片牆</title>
-    <style>
+  <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
         
@@ -140,27 +140,53 @@
         .back-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 8px; color: #333; }
         .user-modal-title { font-weight: bold; font-size: 18px; color: #333; }
         
-        /* 個人相簿 - 主容器：正常垂直排列 */
+        /* 個人相簿 - 主容器 */
         .user-modal-grid {
             display: block;
-            padding: 12px;
+            padding: 0;
             width: 100%;
             overflow-y: auto;
             max-height: 90vh;
+            background: #fafafa;
         }
         
-        /* 照片牆區塊：只在這裡使用瀑布流 */
+        /* 電腦版：雙欄布局（個人資料 + 留言板） */
+        .profile-messages-wrapper {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: #fafafa;
+        }
+        
+        .profile-section {
+            flex: 1;
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .messages-section {
+            flex: 2;
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* 照片牆區塊 - 無標題，直接瀑布流 */
         .user-photo-grid {
             column-count: 2;
-            column-gap: 8px;
+            column-gap: 4px;
+            padding: 0;
+            background: #fafafa;
         }
         
-        /* 照片卡片樣式 */
         .user-photo-card {
             break-inside: avoid;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             position: relative;
-            border-radius: 12px;
+            border-radius: 0;
             overflow: hidden;
             background: #f0f0f0;
         }
@@ -171,11 +197,28 @@
             display: block;
         }
         
-        /* 電腦版瀑布流改為 3 欄 */
+        /* 電腦版調整 */
         @media (min-width: 769px) {
             .photo-grid { column-count: 3; column-gap: 12px; }
-            .user-photo-grid { column-count: 3; column-gap: 12px; }
-            .user-photo-card { margin-bottom: 12px; }
+            .user-photo-grid { column-count: 3; column-gap: 4px; }
+        }
+        
+        /* 手機版：垂直排列，移除 flex */
+        @media (max-width: 768px) {
+            .photo-grid { column-count: 2; column-gap: 8px; padding: 8px; }
+            .photo-card { margin-bottom: 8px; }
+            .users-grid { grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); }
+            .delete-btn, .set-avatar-btn { width: 28px; height: 28px; font-size: 14px; }
+            .set-avatar-btn { right: 42px; }
+            .user-modal-grid { padding: 8px; }
+            .user-photo-grid { column-count: 2; column-gap: 4px; }
+            .profile-messages-wrapper {
+                display: block;
+                padding: 8px;
+            }
+            .profile-section, .messages-section {
+                margin-bottom: 12px;
+            }
         }
         
         /* 個人相簿中按鈕位置微調 */
@@ -238,17 +281,6 @@
         .confirm-btn { padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; }
         .confirm-btn.confirm { background: #ff4444; color: white; }
         .confirm-btn.cancel { background: #ddd; color: #333; }
-        
-        /* 手機版響應式 */
-        @media (max-width: 768px) {
-            .photo-grid { column-count: 2; column-gap: 8px; padding: 8px; }
-            .photo-card { margin-bottom: 8px; }
-            .users-grid { grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); }
-            .delete-btn, .set-avatar-btn { width: 28px; height: 28px; font-size: 14px; }
-            .set-avatar-btn { right: 42px; }
-            .user-modal-grid { padding: 8px; }
-            .user-photo-grid { column-count: 2; column-gap: 6px; }
-        }
     </style>
 </head>
 <body>
@@ -362,6 +394,7 @@ async function showAllPhotos() {
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
 
+ ========== 新版 showUserPhotos（含個人資料、留言板） ==========
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
@@ -374,7 +407,6 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     document.body.style.overflow = 'hidden';
     
     try {
-        // 載入資料...
         let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
         try {
             const profileRes = await fetch(`/api/user/profile/${userId}`);
@@ -388,61 +420,59 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes.json();
         
-        // 正確的 HTML 結構：三個區塊垂直排列
         let html = `
-            <div style="padding: 12px;">
-                <!-- 1. 個人資料區（正常塊級） -->
-                <div style="background: white; padding: 20px; margin-bottom: 12px; border-radius: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea;">
-                    <h2 style="margin: 8px 0 4px; font-size: 20px;">${escapeHtml(profile.displayName || titleName)}</h2>
-                    <p style="color: #666; font-size: 13px;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
-                    <div style="margin-top: 8px;">
-                        ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
-                        ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
+            <div class="profile-messages-wrapper">
+                <!-- 左：個人資料區 -->
+                <div class="profile-section">
+                    <div style="text-align: center;">
+                        <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea; margin-bottom: 12px;">
+                        <h2 style="margin: 0 0 4px; font-size: 20px;">${escapeHtml(profile.displayName || titleName)}</h2>
+                        <p style="color: #666; font-size: 13px; margin: 8px 0; white-space: pre-wrap;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
+                        <div style="margin-top: 10px;">
+                            ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
+                            ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
+                        </div>
+                        ${currentUserId === userId ? `
+                        <div style="margin-top: 16px;">
+                            <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-size: 14px;">✏️ 編輯自我介紹</button>
+                        </div>
+                        ` : ''}
                     </div>
-                    ${currentUserId === userId ? `
-                    <div style="margin-top: 15px;">
-                        <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">✏️ 編輯個人資料</button>
-                    </div>
-                    ` : ''}
                 </div>
                 
-                <!-- 2. 留言板區（正常塊級） -->
-                <div style="background: white; padding: 16px; margin-bottom: 12px; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <h3 style="margin-bottom: 12px;">💬 留言板</h3>
+                <!-- 右：留言板區 -->
+                <div class="messages-section">
+                    <h3 style="margin-bottom: 12px; font-size: 16px;">💬 留言板</h3>
                     <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; outline: none;">
+                        <input type="text" id="messageInput" placeholder="寫下你的留言..." style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 14px;">
                         <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">發送</button>
                     </div>
-                    <div id="messagesList" style="max-height: 250px; overflow-y: auto;">
+                    <div id="messagesList" style="max-height: 400px; overflow-y: auto;">
                         ${messages.map(msg => `
                             <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <strong>${truncateUserId(msg.senderId)}</strong>
-                                    <span style="font-size: 12px; color: #999;">${formatTime(msg.time)}</span>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="font-size: 13px;">${truncateUserId(msg.senderId)}</strong>
+                                    <span style="font-size: 11px; color: #999;">${formatTime(msg.time)}</span>
                                 </div>
-                                <div style="margin: 6px 0;">${escapeHtml(msg.content)}</div>
-                                <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer;">❤️ ${msg.likes || 0}</button>
+                                <div style="margin: 6px 0; font-size: 14px;">${escapeHtml(msg.content)}</div>
+                                <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; color: #ff4444; cursor: pointer; font-size: 12px;">❤️ ${msg.likes || 0}</button>
                             </div>
-                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言</div>'}
+                        `).join('') || '<div style="color: #999; text-align: center; padding: 20px;">暫無留言，來搶頭香吧！</div>'}
                     </div>
                 </div>
-                
-                <!-- 3. 照片牆區（使用瀑布流） -->
-                <div style="background: white; border-radius: 16px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <h3 style="margin-bottom: 12px;">📸 相簿</h3>
-                    <div class="user-photo-grid">
-                        ${photos.map(photo => `
-                            <div class="user-photo-card" data-url="${photo.imageUrl}">
-                                ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
-                                ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                                <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                                    <img src="${photo.imageUrl}" loading="lazy">
-                                </div>
-                            </div>
-                        `).join('')}
+            </div>
+            
+            <!-- 照片牆區塊：無標題，直接瀑布流 -->
+            <div class="user-photo-grid">
+                ${photos.map(photo => `
+                    <div class="user-photo-card" data-url="${photo.imageUrl}">
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                            <img src="${photo.imageUrl}" loading="lazy">
+                        </div>
                     </div>
-                </div>
+                `).join('')}
             </div>
         `;
         
@@ -452,8 +482,7 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         console.error('載入失敗：', error);
         grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
-}// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
-
+}
 // ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
