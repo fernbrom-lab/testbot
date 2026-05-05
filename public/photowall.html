@@ -98,15 +98,48 @@
         .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
         
         /* 個人相簿 - 手機直式，電腦正方形 */
-        .user-modal-grid { display:flex; flex-direction:column; gap:5px; padding:10px; width:100%; }
-        .user-modal-grid > div { width:100%; background:#f0f0f0; border-radius:8px; overflow:hidden; }
-        .user-modal-grid img { width:100%; height:auto; display:block; }
-        
-        @media (min-width: 769px) {
-            .user-modal-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
-            .user-modal-grid > div { aspect-ratio:1/1; }
-            .user-modal-grid img { width:100%; height:100%; object-fit:cover; }
-        }
+       /* --- 個人相簿瀑布流修正 --- */
+
+/* 1. 基礎容器設定：手機版預設 2 欄 */
+.user-modal-grid {
+    display: block;      /* 確保不是 flex 或 grid */
+    column-count: 2;     /* 手機版 2 欄 */
+    column-gap: 8px;     /* 左右間距 */
+    padding: 10px;
+    width: 100%;
+}
+
+/* 2. 修正每一張照片的容器 */
+.user-modal-grid > div {
+    display: inline-block; /* 必須設定 */
+    width: 100%;
+    margin-bottom: 8px;    /* 上下間距 */
+    break-inside: avoid;   /* 防止照片被切斷 */
+    background: #f0f0f0;   /* 預載入色塊 */
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 3. 確保圖片完整呈現且不留白 */
+.user-modal-grid img {
+    width: 100% !important;
+    height: auto !important; /* 強制自動高度，不強迫正方形 */
+    display: block;
+    object-fit: contain;     /* 或者改回預設，確保不被強行裁切 */
+}
+
+/* 4. 電腦版響應式調整：改為 3 欄 */
+@media (min-width: 769px) {
+    .user-modal-grid {
+        column-count: 3;     /* 電腦版 3 欄 */
+        column-gap: 12px;
+    }
+    .user-modal-grid > div {
+        margin-bottom: 12px;
+        /* 移除原本的 aspect-ratio: 1/1; */
+    }
+}
         
         .loading { text-align:center; padding:50px; color:#999; }
         .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
