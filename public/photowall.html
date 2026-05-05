@@ -415,7 +415,7 @@ async function showAllPhotos() {
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName}的個人頁面 🎭`;
+    modalTitle.innerHTML = `👤 ${titleName}🎭`;
     
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入中...</div>';
