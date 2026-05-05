@@ -25,6 +25,7 @@ let googleSheetDoc = null;
 let googleSheetReady = false;
 let photosSheet = null;
 let settingsSheet = null;
+let messagesSheet = null;
 
 async function initGoogleSheets() {
   try {
@@ -70,8 +71,23 @@ async function initGoogleSheets() {
     // 使用者設定工作表
     settingsSheet = doc.sheetsByTitle['使用者設定'];
     if (!settingsSheet) {
-      settingsSheet = await doc.addSheet({ title: '使用者設定', headerValues: ['使用者ID', '顯示名稱', '頭像URL', '更新時間'] });
+      settingsSheet = await doc.addSheet({ title: '使用者設定', headerValues: ['使用者ID', '顯示名稱', '頭像URL', '自我介紹', 'IG帳號', 'FB帳號', '更新時間'] });
       console.log('✅ 已建立「使用者設定」工作表');
+    } else {
+      // 確保有新的欄位
+      await settingsSheet.loadHeaderRow();
+      const currentHeaders2 = settingsSheet.headerValues;
+      if (!currentHeaders2.includes('自我介紹')) {
+        settingsSheet.headerValues = [...currentHeaders2, '自我介紹', 'IG帳號', 'FB帳號'];
+        await settingsSheet.setHeaderRow(settingsSheet.headerValues);
+      }
+    }
+    
+    // 留言板工作表
+    messagesSheet = doc.sheetsByTitle['留言板'];
+    if (!messagesSheet) {
+      messagesSheet = await doc.addSheet({ title: '留言板', headerValues: ['留言ID', '目標使用者ID', '留言者ID', '留言內容', '時間', '按讚數'] });
+      console.log('✅ 已建立「留言板」工作表');
     }
     
     googleSheetReady = true;
@@ -252,7 +268,7 @@ app.post('/webhook/:role', async (req, res) => {
   }
 });
 
-// ========== API ==========
+// ========== 照片牆 API ==========
 // 取得全部照片
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
@@ -302,12 +318,11 @@ app.get('/api/photos/user/:userId', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 取得所有使用者列表（含自訂名稱及頭像）
+// 取得所有使用者列表
 app.get('/api/users', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
     const rows = await photosSheet.getRows();
-    // 收集所有使用者及最新照片
     const usersMap = new Map();
     for (const row of rows) {
       const userId = row.get('使用者ID') || '';
@@ -332,7 +347,6 @@ app.get('/api/users', async (req, res) => {
         user.latestPhoto = imageUrl;
       }
     }
-    // 讀取自訂名稱及頭像
     let settingsMap = new Map();
     if (settingsSheet) {
       const settingsRows = await settingsSheet.getRows();
@@ -341,7 +355,10 @@ app.get('/api/users', async (req, res) => {
         if (uid) {
           settingsMap.set(uid, {
             displayName: row.get('顯示名稱') || '',
-            avatarUrl: row.get('頭像URL') || ''
+            avatarUrl: row.get('頭像URL') || '',
+            bio: row.get('自我介紹') || '',
+            ig: row.get('IG帳號') || '',
+            fb: row.get('FB帳號') || ''
           });
         }
       }
@@ -352,8 +369,11 @@ app.get('/api/users', async (req, res) => {
         userId: user.userId,
         role: user.role,
         photoCount: user.photoCount,
-        latestPhoto: setting.avatarUrl || user.latestPhoto,   // 優先使用自訂頭像
+        latestPhoto: setting.avatarUrl || user.latestPhoto,
         displayName: setting.displayName || null,
+        bio: setting.bio || '',
+        ig: setting.ig || '',
+        fb: setting.fb || '',
         latestTime: user.latestTime
       };
     });
@@ -410,7 +430,7 @@ app.post('/api/user/avatar', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// 刪除照片（使用圖片URL）
+// 刪除照片
 app.delete('/api/photo', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
   try {
@@ -428,6 +448,121 @@ app.delete('/api/photo', async (req, res) => {
     await targetRow.delete();
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ========== 使用者個人資料 API ==========
+app.get('/api/user/profile/:userId', async (req, res) => {
+  if (!googleSheetReady || !settingsSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const targetUserId = req.params.userId;
+    const rows = await settingsSheet.getRows();
+    const userRow = rows.find(row => row.get('使用者ID') === targetUserId);
+    
+    if (!userRow) {
+      return res.json({ 
+        userId: targetUserId, 
+        displayName: null, 
+        avatarUrl: null, 
+        bio: '', 
+        ig: '', 
+        fb: '' 
+      });
+    }
+    
+    res.json({
+      userId: targetUserId,
+      displayName: userRow.get('顯示名稱') || null,
+      avatarUrl: userRow.get('頭像URL') || null,
+      bio: userRow.get('自我介紹') || '',
+      ig: userRow.get('IG帳號') || '',
+      fb: userRow.get('FB帳號') || ''
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/user/profile', async (req, res) => {
+  if (!googleSheetReady || !settingsSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const { userId, bio, ig, fb } = req.body;
+    if (!userId) return res.status(400).json({ error: '缺少 userId' });
+    
+    const rows = await settingsSheet.getRows();
+    let userRow = rows.find(row => row.get('使用者ID') === userId);
+    
+    if (userRow) {
+      if (bio !== undefined) userRow.set('自我介紹', bio);
+      if (ig !== undefined) userRow.set('IG帳號', ig);
+      if (fb !== undefined) userRow.set('FB帳號', fb);
+      userRow.set('更新時間', new Date().toISOString());
+      await userRow.save();
+    } else {
+      await settingsSheet.addRow({
+        '使用者ID': userId,
+        '顯示名稱': '',
+        '頭像URL': '',
+        '自我介紹': bio || '',
+        'IG帳號': ig || '',
+        'FB帳號': fb || '',
+        '更新時間': new Date().toISOString()
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== 留言板 API ==========
+app.get('/api/messages/:userId', async (req, res) => {
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const targetUserId = req.params.userId;
+    const rows = await messagesSheet.getRows();
+    const messages = [];
+    for (const row of rows) {
+      if (row.get('目標使用者ID') === targetUserId) {
+        messages.push({
+          id: row.get('留言ID'),
+          senderId: row.get('留言者ID'),
+          content: row.get('留言內容'),
+          time: row.get('時間'),
+          likes: parseInt(row.get('按讚數')) || 0
+        });
+      }
+    }
+    messages.reverse();
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/messages', async (req, res) => {
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const { targetUserId, senderId, content } = req.body;
+    if (!targetUserId || !senderId || !content) {
+      return res.status(400).json({ error: '缺少必要參數' });
+    }
+    
+    const rows = await messagesSheet.getRows();
+    const newId = rows.length + 1;
+    
+    await messagesSheet.addRow({
+      '留言ID': newId,
+      '目標使用者ID': targetUserId,
+      '留言者ID': senderId,
+      '留言內容': content,
+      '時間': new Date().toISOString(),
+      '按讚數': 0
+    });
+    
+    res.json({ success: true, messageId: newId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ========== 照片牆網頁 ==========
