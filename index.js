@@ -29,6 +29,7 @@ let messagesSheet = null;
 // 暫存照片說明文字
 let pendingCaption = {};
 
+// ========== Google Sheets 設定 (自動修復版) ==========
 async function initGoogleSheets() {
   try {
     console.log('🔧 開始初始化 Google Sheets...');
@@ -52,6 +53,78 @@ async function initGoogleSheets() {
     await doc.loadInfo();
     console.log('✅ 文件載入成功');
     googleSheetDoc = doc;
+    
+    // --- 照片牆工作表 (自動修復邏輯) ---
+    let photosSheet = doc.sheetsByTitle['照片牆'];
+    if (!photosSheet) {
+      photosSheet = await doc.addSheet({ title: '照片牆' });
+      console.log('✅ 已建立全新的「照片牆」工作表');
+    }
+
+    // 定義你需要的正確欄位
+    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月', '按讚數'];
+    let currentHeaders = [];
+
+    // 嘗試讀取現有的標題列
+    try {
+      await photosSheet.loadHeaderRow();
+      currentHeaders = photosSheet.headerValues;
+      console.log('📋 讀取到現有標題列:', currentHeaders);
+    } catch (headerError) {
+      console.log('⚠️ 讀取標題列失敗，假設工作表為空。');
+      currentHeaders = [];
+    }
+
+    // 檢查標題列是否需要修復
+    let needRepair = false;
+    if (currentHeaders.length === 0) {
+      console.log('🔧 標題列為空，需要建立。');
+      needRepair = true;
+    } else if (currentHeaders.length !== expectedHeaders.length) {
+      console.log(`🔧 欄位數量不匹配 (現有: ${currentHeaders.length}, 需要: ${expectedHeaders.length})，需要重建。`);
+      needRepair = true;
+    } else {
+      for (let i = 0; i < expectedHeaders.length; i++) {
+        if (currentHeaders[i] !== expectedHeaders[i]) {
+          console.log(`🔧 欄位名稱不匹配 (第${i+1}欄: 現有「${currentHeaders[i]}」, 需要「${expectedHeaders[i]}」)，需要重建。`);
+          needRepair = true;
+          break;
+        }
+      }
+    }
+
+    // 如果需要修復，就執行清除並重建
+    if (needRepair) {
+      console.log('🔄 正在重建「照片牆」工作表結構...');
+      try {
+        // 清空整個工作表 (包含標題列和所有資料)
+        await photosSheet.clear();
+        // 設定正確的標題列
+        await photosSheet.setHeaderRow(expectedHeaders);
+        console.log('✅ 已成功重建標題列:', expectedHeaders);
+      } catch (repairError) {
+        console.error('❌ 重建工作表失敗:', repairError.message);
+        return false;
+      }
+    } else {
+      console.log('✅ 標題列檢查無誤，無需修復。');
+    }
+    
+    // 將處理好的 sheet 物件賦值給全域變數
+    window.photosSheet = photosSheet;
+    
+    // 使用者設定工作表 (保持原有邏輯，可以不用改)
+    // ... (你的 settingsSheet 和 messagesSheet 程式碼保持不變) ...
+
+    googleSheetReady = true;
+    console.log('✅ Google Sheets 連線成功！');
+    return true;
+  } catch (error) {
+    console.error('❌ Google Sheets 連線失敗：', error.message);
+    googleSheetReady = false;
+    return false;
+  }
+}
     
     // 照片牆工作表
     photosSheet = doc.sheetsByTitle['照片牆'];
