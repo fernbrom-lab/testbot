@@ -26,7 +26,7 @@ let photosSheet = null;
 let settingsSheet = null;
 let messagesSheet = null;
 
-// 暫存照片資訊，讓使用者可以補充說明文字
+// 暫存照片說明文字
 let pendingCaption = {};
 
 async function initGoogleSheets() {
@@ -60,7 +60,7 @@ async function initGoogleSheets() {
       console.log('✅ 已建立「照片牆」工作表');
     }
     
-    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
+    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月', '按讚數'];
     let currentHeaders = [];
     
     try {
@@ -158,7 +158,8 @@ async function savePhotoToSheet(userId, imageUrl, caption = '') {
       '圖片URL': imageUrl,
       '原始訊息': caption || '',
       '標籤': '',
-      '年月': yearMonth
+      '年月': yearMonth,
+      '按讚數': 0
     });
     console.log(`📸 照片已儲存`);
     return true;
@@ -294,7 +295,7 @@ app.post('/webhook', async (req, res) => {
 
 // ========== 照片牆 API ==========
 
-// 取得全部照片（含標籤、年月，並自動補上 yearMonth）
+// 取得全部照片
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -316,7 +317,8 @@ app.get('/api/photos', async (req, res) => {
         imageUrl,
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
-        yearMonth: yearMonth
+        yearMonth: yearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
       });
     }
     photos.reverse();
@@ -347,7 +349,8 @@ app.get('/api/photos/user/:userId', async (req, res) => {
         imageUrl,
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
-        yearMonth: yearMonth
+        yearMonth: yearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
       });
     }
     photos.sort((a,b) => new Date(b.time) - new Date(a.time));
@@ -376,7 +379,8 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
         imageUrl: row.get('圖片URL'),
         message: row.get('原始訊息') || '',
         tag: rowTag,
-        yearMonth: yearMonth
+        yearMonth: yearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
       });
     }
     photos.reverse();
@@ -404,7 +408,8 @@ app.get('/api/photos/date/:yearMonth', async (req, res) => {
         imageUrl: row.get('圖片URL'),
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
-        yearMonth: rowYearMonth
+        yearMonth: rowYearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
       });
     }
     photos.reverse();
@@ -427,6 +432,32 @@ app.post('/api/photo/tag', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// 照片按讚 API
+app.post('/api/photo/like', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
+  try {
+    const { imageUrl } = req.body;
+    if (!imageUrl) return res.status(400).json({ success: false });
+    
+    const rows = await photosSheet.getRows();
+    for (const row of rows) {
+      if (row.get('圖片URL') === imageUrl) {
+        const currentLikes = parseInt(row.get('按讚數')) || 0;
+        const newLikes = currentLikes + 1;
+        row.set('按讚數', newLikes);
+        await row.save();
+        console.log(`❤️ 照片按讚 +1，目前 ${newLikes} 讚`);
+        res.json({ success: true, likes: newLikes });
+        return;
+      }
+    }
+    res.status(404).json({ success: false, message: '找不到照片' });
+  } catch (error) {
+    console.error('❌ 按讚失敗：', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // 取得所有使用者列表
