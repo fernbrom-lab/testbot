@@ -216,7 +216,7 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         let allMessages = await messagesRes.json();
         const photoRes2 = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes2.json();
-        const MESSAGES_PER_PAGE = 5;
+        const MESSAGES_PER_PAGE = 3;
         function renderMessages(page) {
             const end = page * MESSAGES_PER_PAGE;
             const visibleMessages = allMessages.slice(0, end);
