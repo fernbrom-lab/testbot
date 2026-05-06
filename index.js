@@ -233,7 +233,7 @@ app.post('/webhook', async (req, res) => {
 
 // ========== 照片牆 API ==========
 
-// 取得全部照片（含標籤、年月）
+// 取得全部照片（含標籤、年月，並自動補上 yearMonth）
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -244,13 +244,18 @@ app.get('/api/photos', async (req, res) => {
       const imageUrl = row.get('圖片URL') || '';
       if (userId === 'test_user') continue;
       if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      const time = row.get('時間') || '';
+      let yearMonth = row.get('年月') || '';
+      if (!yearMonth && time) {
+        yearMonth = time.substring(0, 7);
+      }
       photos.push({
-        time: row.get('時間') || '',
+        time: time,
         userId,
         imageUrl,
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
-        yearMonth: row.get('年月') || ''
+        yearMonth: yearMonth
       });
     }
     photos.reverse();
@@ -270,13 +275,18 @@ app.get('/api/photos/user/:userId', async (req, res) => {
       const imageUrl = row.get('圖片URL') || '';
       if (userId !== targetUserId) continue;
       if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      const time = row.get('時間') || '';
+      let yearMonth = row.get('年月') || '';
+      if (!yearMonth && time) {
+        yearMonth = time.substring(0, 7);
+      }
       photos.push({
-        time: row.get('時間') || '',
+        time: time,
         userId,
         imageUrl,
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
-        yearMonth: row.get('年月') || ''
+        yearMonth: yearMonth
       });
     }
     photos.sort((a,b) => new Date(b.time) - new Date(a.time));
@@ -294,13 +304,18 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     for (const row of rows) {
       const rowTag = row.get('標籤') || '';
       if (rowTag !== tag) continue;
+      const time = row.get('時間') || '';
+      let yearMonth = row.get('年月') || '';
+      if (!yearMonth && time) {
+        yearMonth = time.substring(0, 7);
+      }
       photos.push({
-        time: row.get('時間') || '',
+        time: time,
         userId: row.get('使用者ID'),
         imageUrl: row.get('圖片URL'),
         message: row.get('原始訊息') || '',
         tag: rowTag,
-        yearMonth: row.get('年月') || ''
+        yearMonth: yearMonth
       });
     }
     photos.reverse();
@@ -316,10 +331,14 @@ app.get('/api/photos/date/:yearMonth', async (req, res) => {
     const rows = await photosSheet.getRows();
     const photos = [];
     for (const row of rows) {
-      const rowYearMonth = row.get('年月') || '';
+      let rowYearMonth = row.get('年月') || '';
+      const time = row.get('時間') || '';
+      if (!rowYearMonth && time) {
+        rowYearMonth = time.substring(0, 7);
+      }
       if (rowYearMonth !== yearMonth) continue;
       photos.push({
-        time: row.get('時間') || '',
+        time: time,
         userId: row.get('使用者ID'),
         imageUrl: row.get('圖片URL'),
         message: row.get('原始訊息') || '',
