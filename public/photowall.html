@@ -126,17 +126,17 @@
         
         /* 個人相簿彈窗標題欄 */
         .user-modal-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            border-bottom: 1px solid #dbdbdb;
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            z-index: 10;
-        }
-        
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 1px solid #dbdbdb;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;  /* 左右分開 */
+    gap: 15px;
+    z-index: 10;
+}
         .back-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 8px; color: #333; }
         .user-modal-title { font-weight: bold; font-size: 18px; color: #333; }
         
@@ -288,7 +288,7 @@
 <div class="container" id="mainContainer"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 <div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
-<div id="userModal" class="user-modal"><div class="user-modal-header"><button class="back-btn" onclick="closeUserModal()">← 返回</button><div class="user-modal-title" id="userModalTitle"></div></div><div id="userModalGrid" class="user-modal-grid"></div></div>
+<div id="userModal" class="user-modal"><div class="user-modal-header"><button class="back-btn" onclick="closeUserModal()">⬅️</button><div class="user-modal-title" id="userModalTitle"></div></div><div id="userModalGrid" class="user-modal-grid"></div></div>
 <div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 <script>
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
