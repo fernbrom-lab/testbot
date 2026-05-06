@@ -98,9 +98,28 @@
             background: #f0f0f0;
         }
         
+        /* 個人相簿照片卡片 - 日期和說明直接顯示 */
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
         .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
         .user-photo-card img { width:100%; height:auto; display:block; }
+        .user-photo-info {
+            padding: 6px 8px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            font-size: 11px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .user-photo-info .date { font-size: 10px; opacity: 0.9; }
+        .user-photo-info .message { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-photo-info .like-btn { background: none; border: none; color: #ff4444; cursor: pointer; font-size: 12px; padding: 0 4px; }
         
         @media (min-width:769px){ .photo-grid { column-count:3; } .user-photo-grid { column-count:3; } }
         @media (max-width:768px){ 
@@ -110,6 +129,8 @@
             .delete-btn, .set-avatar-btn, .tag-btn { width:28px; height:28px; font-size:14px; }
             .set-avatar-btn { right:42px; }
             .tag-btn { right:76px; }
+            .user-photo-info { font-size: 9px; padding: 4px 6px; }
+            .user-photo-info .like-btn { font-size: 10px; }
         }
         
         .loading { text-align:center; padding:50px; color:#999; }
@@ -167,7 +188,7 @@ function formatTime(isoString) { if(!isoString) return '未知時間'; const dat
 function formatFullDateTime(isoString) {
     if(!isoString) return '未知時間';
     const d = new Date(isoString);
-    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
 function truncateUserId(userId) { if(!userId) return '匿名'; if(userId==='test_user') return '測試'; if(userId===currentUserId) return '我'; if(userId.length>12) return userId.substring(0,8)+'...'; return userId; }
 function showConfirm(imageUrl, userId, refreshCallback) { pendingDelete = { imageUrl, userId, refreshCallback }; confirmOverlay.style.display = 'flex'; }
@@ -209,6 +230,8 @@ function renderPhotoGrid(photos) {
     photos.forEach(photo => {
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const likeId = 'like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
@@ -216,12 +239,38 @@ function renderPhotoGrid(photos) {
                             <div>👤 ${displayName}</div>
                             <div>📅 ${fullDate}</div>
                             ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
+                            <div style="margin-top: 5px;">
+                                <button class="like-photo-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')" style="background:none; border:none; color:#ff4444; cursor:pointer; font-size:14px;">❤️ <span id="${likeId}">${likes}</span></button>
+                            </div>
                         </div>
                     </div>
                 </div>`;
     });
     html += '</div>';
     return html;
+}
+async function likePhoto(imageUrl, spanId) {
+    if(!currentUserId) {
+        alert('請登入後再按讚');
+        return;
+    }
+    try {
+        const res = await fetch('/api/photo/like', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const span = document.getElementById(spanId);
+            if (span) span.textContent = data.likes;
+        } else {
+            alert('按讚失敗');
+        }
+    } catch(e) {
+        console.error('按讚失敗', e);
+        alert('按讚失敗');
+    }
 }
 async function loadDateOptions() {
     const res = await fetch('/api/photos');
@@ -406,17 +455,20 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
             let html = '<div class="user-photo-grid">';
             photos.forEach(photo => {
                 const fullDate = formatFullDateTime(photo.time);
+                const likes = photo.likes || 0;
+                const likeId = 'user_like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
                 html += `
-                    <div class="user-photo-card" data-url="${photo.imageUrl}">
+                    <div class="user-photo-card" data-url="${photo.imageUrl}" style="position: relative;">
                         ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
                         ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
                         ${currentUserId === userId ? `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}', '${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}')">🏷️</button>` : ''}
                         <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
                             <img src="${photo.imageUrl}" loading="lazy">
                         </div>
-                        <div style="padding: 4px 8px; background: rgba(0,0,0,0.05); font-size: 11px; color: #666;">
-                            📅 ${fullDate}
-                            ${photo.tag ? `<span style="margin-left: 8px;">🏷️ ${photo.tag}</span>` : ''}
+                        <div class="user-photo-info">
+                            <span class="date">📅 ${fullDate}</span>
+                            ${photo.message ? `<span class="message">💬 ${photo.message}</span>` : ''}
+                            <button class="like-btn" onclick="event.stopPropagation(); likeUserPhoto('${photo.imageUrl}', '${likeId}')">❤️ <span id="${likeId}">${likes}</span></button>
                         </div>
                     </div>
                 `;
@@ -424,6 +476,23 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
             html += '</div>';
             return html;
         }
+        
+        async function likeUserPhoto(imageUrl, spanId) {
+            if(!currentUserId) { alert('請登入後再按讚'); return; }
+            try {
+                const res = await fetch('/api/photo/like', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageUrl })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const span = document.getElementById(spanId);
+                    if (span) span.textContent = data.likes;
+                } else { alert('按讚失敗'); }
+            } catch(e) { console.error('按讚失敗', e); alert('按讚失敗'); }
+        }
+        window.likeUserPhoto = likeUserPhoto;
         
         const MESSAGES_PER_PAGE = 5;
         function renderMessages(page) {
