@@ -20,7 +20,7 @@
         .filter-btn { background: none; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
         .filter-btn.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
         .filter-btn:hover { background: #f0f0f0; }
-        #dateSelect { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; margin-left: auto; }
+        .date-select { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; }
         
         .container { width:100%; margin:0; padding:0; }
         
@@ -93,9 +93,15 @@
     <button class="filter-btn" data-filter="風景" onclick="setFilter('風景')">🌄 風景</button>
     <button class="filter-btn" data-filter="美食" onclick="setFilter('美食')">🍜 美食</button>
     <button class="filter-btn" data-filter="人物" onclick="setFilter('人物')">👤 人物</button>
-    <select id="dateSelect" onchange="setDateFilter(this.value)">
-        <option value="all">📅 全部日期</option>
-    </select>
+    
+    <div style="display: flex; gap: 8px; margin-left: auto;">
+        <select id="yearSelect" class="date-select" onchange="onYearChange()">
+            <option value="all">📅 全部年份</option>
+        </select>
+        <select id="monthSelect" class="date-select" onchange="onMonthChange()">
+            <option value="all">📆 全部月份</option>
+        </select>
+    </div>
 </div>
 <div class="container" id="mainContainer"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
@@ -107,7 +113,11 @@ let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userI
 let userNameMap = new Map();
 let currentUserId = localStorage.getItem('userId');
 let currentTagFilter = 'all';
-let currentDateFilter = 'all';
+let currentYear = 'all';
+let currentMonth = 'all';
+let availableYears = [];
+let availableMonths = new Map();
+
 if(!currentUserId) console.log('⚠️ 未登入，只能瀏覽');
 
 const photoModal = document.getElementById('photoModal'), modalImg = document.getElementById('modalImage'), modalInfo = document.getElementById('modalInfo');
@@ -117,6 +127,11 @@ photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.displ
 window.onscroll = () => { backToTop.style.display = window.scrollY > 300 ? 'block' : 'none'; };
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function formatTime(isoString) { if(!isoString) return '未知時間'; const date=new Date(isoString), now=new Date(), days=Math.floor((now-date)/(1000*60*60*24)); if(days===0) return '今天'; if(days===1) return '昨天'; if(days<7) return `${days}天前`; return date.toLocaleDateString('zh-TW'); }
+function formatFullDateTime(isoString) {
+    if(!isoString) return '未知時間';
+    const d = new Date(isoString);
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
 function truncateUserId(userId) { if(!userId) return '匿名'; if(userId==='test_user') return '測試'; if(userId===currentUserId) return '我'; if(userId.length>12) return userId.substring(0,8)+'...'; return userId; }
 function showConfirm(imageUrl, userId, refreshCallback) { pendingDelete = { imageUrl, userId, refreshCallback }; confirmOverlay.style.display = 'flex'; }
 function hideConfirm() { confirmOverlay.style.display = 'none'; pendingDelete = { imageUrl: null, userId: null, refreshCallback: null }; }
@@ -156,15 +171,107 @@ function renderPhotoGrid(photos) {
     let html = '<div class="photo-grid">';
     photos.forEach(photo => {
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay"><div>👤 ${displayName}</div><div>❤️ ${formatTime(photo.time)}</div>${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}</div>
+                        <div class="photo-overlay">
+                            <div>👤 ${displayName}</div>
+                            <div>📅 ${fullDate}</div>
+                            ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
+                        </div>
                     </div>
                 </div>`;
     });
     html += '</div>';
     return html;
+}
+async function loadDateOptions() {
+    const res = await fetch('/api/photos');
+    const photos = await res.json();
+    const years = new Set();
+    const monthsMap = new Map();
+    photos.forEach(photo => {
+        let yearMonth = photo.yearMonth;
+        if (!yearMonth && photo.time) yearMonth = photo.time.substring(0, 7);
+        if (yearMonth) {
+            const year = yearMonth.substring(0, 4);
+            const month = yearMonth.substring(5, 7);
+            years.add(year);
+            if (!monthsMap.has(year)) monthsMap.set(year, new Set());
+            monthsMap.get(year).add(month);
+        }
+    });
+    availableYears = Array.from(years).sort().reverse();
+    availableMonths = monthsMap;
+    const yearSelect = document.getElementById('yearSelect');
+    yearSelect.innerHTML = '<option value="all">📅 全部年份</option>';
+    availableYears.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = `${year}年`;
+        yearSelect.appendChild(option);
+    });
+    const monthSelect = document.getElementById('monthSelect');
+    monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+}
+function onYearChange() {
+    const yearSelect = document.getElementById('yearSelect');
+    currentYear = yearSelect.value;
+    const monthSelect = document.getElementById('monthSelect');
+    if (currentYear === 'all') {
+        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+        currentMonth = 'all';
+        monthSelect.value = 'all';
+    } else {
+        const months = availableMonths.get(currentYear) || new Set();
+        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+        const sortedMonths = Array.from(months).sort().reverse();
+        sortedMonths.forEach(month => {
+            const option = document.createElement('option');
+            option.value = month;
+            option.textContent = `${month}月`;
+            monthSelect.appendChild(option);
+        });
+        currentMonth = 'all';
+        monthSelect.value = 'all';
+    }
+    applyDateFilter();
+}
+function onMonthChange() {
+    const monthSelect = document.getElementById('monthSelect');
+    currentMonth = monthSelect.value;
+    applyDateFilter();
+}
+async function applyDateFilter() {
+    if (currentView !== 'all') return;
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">📷 載入中...</div>';
+    try {
+        let photos = [];
+        if (currentTagFilter === 'all') {
+            const res = await fetch('/api/photos');
+            photos = await res.json();
+        } else {
+            const res = await fetch(`/api/photos/tag/${encodeURIComponent(currentTagFilter)}`);
+            photos = await res.json();
+        }
+        if (currentYear !== 'all') {
+            photos = photos.filter(photo => {
+                let yearMonth = photo.yearMonth;
+                if (!yearMonth && photo.time) yearMonth = photo.time.substring(0, 7);
+                if (!yearMonth) return false;
+                const year = yearMonth.substring(0, 4);
+                if (currentYear !== year) return false;
+                if (currentMonth !== 'all') {
+                    const month = yearMonth.substring(5, 7);
+                    if (currentMonth !== month) return false;
+                }
+                return true;
+            });
+        }
+        container.innerHTML = renderPhotoGrid(photos);
+    } catch(e) { container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
 }
 async function setFilter(tag) {
     currentTagFilter = tag;
@@ -172,68 +279,22 @@ async function setFilter(tag) {
         if(btn.dataset.filter === tag) btn.classList.add('active');
         else btn.classList.remove('active');
     });
-    await loadFilteredPhotos();
-}
-async function setDateFilter(yearMonth) {
-    currentDateFilter = yearMonth;
-    await loadFilteredPhotos();
-}
-async function loadFilteredPhotos() {
-    if(currentView !== 'all') return;
-    const container = document.getElementById('mainContainer');
-    container.innerHTML = '<div class="loading">📷 載入中...</div>';
-    try {
-        let photos = [];
-        if (currentTagFilter === 'all' && currentDateFilter === 'all') {
-            const res = await fetch('/api/photos');
-            photos = await res.json();
-        } else if (currentTagFilter !== 'all' && currentDateFilter === 'all') {
-            const res = await fetch(`/api/photos/tag/${encodeURIComponent(currentTagFilter)}`);
-            photos = await res.json();
-        } else if (currentTagFilter === 'all' && currentDateFilter !== 'all') {
-            const res = await fetch(`/api/photos/date/${currentDateFilter}`);
-            photos = await res.json();
-        } else {
-            const [tagRes, dateRes] = await Promise.all([
-                fetch(`/api/photos/tag/${encodeURIComponent(currentTagFilter)}`),
-                fetch(`/api/photos/date/${currentDateFilter}`)
-            ]);
-            const tagPhotos = await tagRes.json();
-            const datePhotos = await dateRes.json();
-            const tagUrlSet = new Set(tagPhotos.map(p => p.imageUrl));
-            photos = datePhotos.filter(p => tagUrlSet.has(p.imageUrl));
-        }
-        container.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-async function loadDateOptions() {
-    const res = await fetch('/api/photos');
-    const photos = await res.json();
-    const dates = new Set();
-    photos.forEach(photo => {
-        const yearMonth = photo.yearMonth || photo.time?.substring(0, 7);
-        if(yearMonth) dates.add(yearMonth);
-    });
-    const select = document.getElementById('dateSelect');
-    const sorted = Array.from(dates).sort().reverse();
-    sorted.forEach(ym => {
-        const option = document.createElement('option');
-        option.value = ym;
-        option.textContent = `${ym.replace('-', '年')}月`;
-        select.appendChild(option);
-    });
+    await applyDateFilter();
 }
 async function showUsers() {
     currentView='users';
     currentTagFilter = 'all';
-    currentDateFilter = 'all';
+    currentYear = 'all';
+    currentMonth = 'all';
     document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
     document.querySelector('.nav-buttons button:last-child').classList.add('active');
     document.querySelectorAll('.filter-btn').forEach(btn=>btn.classList.remove('active'));
     const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
     if(allBtn) allBtn.classList.add('active');
-    const dateSelect = document.getElementById('dateSelect');
-    if(dateSelect) dateSelect.value = 'all';
+    const yearSelect = document.getElementById('yearSelect');
+    if(yearSelect) yearSelect.value = 'all';
+    const monthSelect = document.getElementById('monthSelect');
+    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
     const container=document.getElementById('mainContainer');
     container.innerHTML='<div class="loading">👥 載入成員中...</div>';
     try {
@@ -260,15 +321,18 @@ async function showUsers() {
 async function showAllPhotos() {
     currentView='all';
     currentTagFilter = 'all';
-    currentDateFilter = 'all';
+    currentYear = 'all';
+    currentMonth = 'all';
     document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
     document.querySelector('.nav-buttons button:first-child').classList.add('active');
     document.querySelectorAll('.filter-btn').forEach(btn=>btn.classList.remove('active'));
     const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
     if(allBtn) allBtn.classList.add('active');
-    const dateSelect = document.getElementById('dateSelect');
-    if(dateSelect) dateSelect.value = 'all';
-    await loadFilteredPhotos();
+    const yearSelect = document.getElementById('yearSelect');
+    if(yearSelect) yearSelect.value = 'all';
+    const monthSelect = document.getElementById('monthSelect');
+    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+    await applyDateFilter();
 }
 async function showUserPhotos(userId, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
@@ -340,16 +404,22 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
                 </div>
             </div>
             <div class="user-photo-grid">
-                ${photos.map(photo => `
+                ${photos.map(photo => {
+                    const fullDate = formatFullDateTime(photo.time);
+                    return `
                     <div class="user-photo-card" data-url="${photo.imageUrl}">
                         ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
                         ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
                         ${currentUserId === userId ? `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')">🏷️</button>` : ''}
                         <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
                             <img src="${photo.imageUrl}" loading="lazy">
+                            <div class="photo-overlay" style="opacity:1; background:none; color:#333; padding:0; margin-top:4px; position:relative;">
+                                <div>📅 ${fullDate}</div>
+                                ${photo.message ? `<div>💬 ${photo.message}</div>` : ''}
+                            </div>
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         `;
         grid.innerHTML = html;
@@ -425,7 +495,8 @@ function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
     const isOwner=currentUserId&&userId===currentUserId;
     const showDelete=fromUserModal&&isOwner;
     const displayName = userNameMap.get(userId) || truncateUserId(userId);
-    modalInfo.innerHTML=`<div>👤 ${displayName}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML=`<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
     photoModal.style.display='block';
 }
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
