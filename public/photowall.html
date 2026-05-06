@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>📸 回憶照片牆</title>
-  <style>
+    <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
         
@@ -23,264 +23,59 @@
         .user-card:hover { transform:translateY(-5px); box-shadow:0 5px 20px rgba(0,0,0,0.15); }
         .user-avatar { width:80px; height:80px; border-radius:50%; object-fit:cover; margin:0 auto 12px; border:3px solid #667eea; }
         .user-name { font-weight:bold; margin-bottom:5px; font-size:14px; word-break:break-all; }
-        .user-role { font-size:12px; color:#667eea; margin-bottom:8px; }
         .user-count { font-size:12px; color:#999; }
         .edit-name-btn { position:absolute; top:10px; right:10px; background:#f0f0f0; border:none; border-radius:20px; padding:4px 8px; font-size:12px; cursor:pointer; }
         .edit-name-btn:hover { background:#ddd; }
         
-        /* 全部照片牆 - 瀑布流版 */
-        .photo-grid {
-            column-count: 4;
-            column-gap: 10px;
-            padding: 10px;
-            background: #fff;
+        .photo-grid { column-count:4; column-gap:10px; padding:10px; background:#fff; }
+        .photo-card { display:inline-block; width:100%; margin-bottom:10px; position:relative; cursor:pointer; background:#f0f0f0; border-radius:8px; overflow:hidden; break-inside:avoid; }
+        .photo-card img { width:100%; height:auto; display:block; }
+        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
+        .photo-card:hover .photo-overlay { opacity:1; }
+        
+        .delete-btn, .set-avatar-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+        .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
+        .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
+        .set-avatar-btn { right:50px; background:rgba(102,126,234,0.9); }
+        .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
+        
+        .modal, .user-modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:hidden; }
+        .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
+        .modal-image { width:100%; height:auto; border-radius:10px; }
+        .modal-info { color:white; padding:15px; text-align:center; }
+        .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
+        
+        .user-modal-header { position:sticky; top:0; background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:15px; z-index:10; }
+        .back-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:8px; color:#333; }
+        .user-modal-title { font-weight:bold; font-size:18px; color:#333; }
+        
+        .user-modal-grid { display:block; padding:0; width:100%; overflow-y:auto; max-height:100vh; background:#fafafa; }
+        .profile-messages-wrapper { display:flex; gap:12px; padding:12px; background:#fafafa; }
+        .profile-section { flex:1; background:white; border-radius:16px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .messages-section { flex:2; background:white; border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
+        .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
+        .user-photo-card img { width:100%; height:auto; display:block; }
+        
+        @media (min-width:769px){ .photo-grid { column-count:3; } .user-photo-grid { column-count:3; } }
+        @media (max-width:768px){ 
+            .photo-grid { column-count:2; } .users-grid { grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); }
+            .profile-messages-wrapper { display:block; }
+            .profile-section, .messages-section { margin-bottom:12px; }
         }
+        .user-photo-card .delete-btn, .user-photo-card .set-avatar-btn { position:absolute; top:8px; }
+        .user-photo-card .delete-btn { right:8px; }
+        .user-photo-card .set-avatar-btn { right:46px; }
         
-        .photo-card {
-            display: inline-block;
-            width: 100%;
-            margin-bottom: 10px;
-            position: relative;
-            cursor: pointer;
-            background: #f0f0f0;
-            border-radius: 8px;
-            overflow: hidden;
-            break-inside: avoid;
-        }
-        
-        .photo-card img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        .photo-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            color: white;
-            padding: 20px 10px 10px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            font-size: 13px;
-        }
-        
-        .photo-card:hover .photo-overlay {
-            opacity: 1;
-        }
-        
-        /* 刪除和設頭像按鈕共用樣式 */
-        .delete-btn, .set-avatar-btn {
-            position: absolute;
-            top: 10px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 5;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        
-        .delete-btn { right: 10px; background: rgba(255,68,68,0.9); }
-        .delete-btn:hover { background: #ff4444; transform: scale(1.05); }
-        
-        .set-avatar-btn { right: 50px; background: rgba(102,126,234,0.9); }
-        .set-avatar-btn:hover { background: #667eea; transform: scale(1.05); }
-        
-        /* 彈窗共用 */
-        .modal, .user-modal {
-            display: none;
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.95);
-            z-index: 1000;
-            overflow: hidden;
-        }
-        
-        .modal-content {
-            position: relative;
-            margin: auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 800px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-        
-        .modal-image { width: 100%; height: auto; border-radius: 10px; }
-        .modal-info { color: white; padding: 15px; text-align: center; }
-        .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; }
-        
-        /* 個人相簿彈窗標題欄 */
-        .user-modal-header {
-    position: sticky;
-    top: 0;
-    background: white;
-    border-bottom: 1px solid #dbdbdb;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;  /* 左右分開 */
-    gap: 15px;
-    z-index: 10;
-}
-        .back-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 8px; color: #333; }
-        .user-modal-title { font-weight: bold; font-size: 18px; color: #333; }
-        
-        /* 個人相簿 - 主容器 */
-        .user-modal-grid {
-            display: block;
-            padding: 0;
-            width: 100%;
-            overflow-y: auto;
-            max-height: 100vh;
-            background: #fafafa;
-        }
-        
-        /* 電腦版：雙欄布局（個人資料 + 留言板） */
-        .profile-messages-wrapper {
-            display: flex;
-            gap: 12px;
-            padding: 12px;
-            background: #fafafa;
-        }
-        
-        .profile-section {
-            flex: 1;
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .messages-section {
-            flex: 2;
-            background: white;
-            border-radius: 16px;
-            padding: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        /* 照片牆區塊 - 無標題，直接瀑布流 */
-        .user-photo-grid {
-            column-count: 2;
-            column-gap: 4px;
-            padding: 0;
-            background: #fafafa;
-        }
-        
-        .user-photo-card {
-            break-inside: avoid;
-            margin-bottom: 4px;
-            position: relative;
-            border-radius: 0;
-            overflow: hidden;
-            background: #f0f0f0;
-        }
-        
-        .user-photo-card img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        /* 電腦版調整 */
-        @media (min-width: 769px) {
-            .photo-grid { column-count: 3; column-gap: 12px; }
-            .user-photo-grid { column-count: 3; column-gap: 4px; }
-        }
-        
-        /* 手機版：垂直排列，移除 flex */
-        @media (max-width: 768px) {
-            .photo-grid { column-count: 2; column-gap: 8px; padding: 8px; }
-            .photo-card { margin-bottom: 8px; }
-            .users-grid { grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); }
-            .delete-btn, .set-avatar-btn { width: 28px; height: 28px; font-size: 14px; }
-            .set-avatar-btn { right: 42px; }
-            .user-modal-grid { padding: 8px; }
-            .user-photo-grid { column-count: 2; column-gap: 4px; }
-            .profile-messages-wrapper {
-                display: block;
-                padding: 8px;
-            }
-            .profile-section, .messages-section {
-                margin-bottom: 12px;
-            }
-        }
-        
-        /* 個人相簿中按鈕位置微調 */
-        .user-photo-card .delete-btn,
-        .user-photo-card .set-avatar-btn {
-            position: absolute;
-            top: 8px;
-            z-index: 5;
-        }
-        
-        .user-photo-card .delete-btn { right: 8px; }
-        .user-photo-card .set-avatar-btn { right: 46px; }
-        
-        /* 載入中 */
-        .loading { text-align: center; padding: 50px; color: #999; }
-        
-        /* 回到頂部 */
-        .back-to-top {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            display: none;
-            z-index: 100;
-        }
-        
-        /* 確認對話框 */
-        .confirm-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .confirm-dialog {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            width: 300px;
-            text-align: center;
-        }
-        
-        .confirm-dialog p { margin-bottom: 20px; }
-        
-        .confirm-buttons { display: flex; gap: 10px; justify-content: center; }
-        .confirm-btn { padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; }
-        .confirm-btn.confirm { background: #ff4444; color: white; }
-        .confirm-btn.cancel { background: #ddd; color: #333; }
+        .loading { text-align:center; padding:50px; color:#999; }
+        .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
+        .confirm-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; }
+        .confirm-dialog { background:white; border-radius:12px; padding:20px; width:300px; text-align:center; }
+        .confirm-dialog p { margin-bottom:20px; }
+        .confirm-buttons { display:flex; gap:10px; justify-content:center; }
+        .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
+        .confirm-btn.confirm { background:#ff4444; color:white; }
+        .confirm-btn.cancel { background:#ddd; color:#333; }
     </style>
 </head>
 <body>
@@ -292,7 +87,7 @@
 <div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 <script>
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
-let userNameMap = new Map();  // 儲存 userId -> 顯示名稱    
+let userNameMap = new Map();
 let currentUserId = localStorage.getItem('userId');
 if(!currentUserId) console.log('⚠️ 未登入，只能瀏覽');
 
@@ -313,11 +108,8 @@ async function executeDelete() {
     try {
         const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
         const result = await res.json();
-        if(result.success) {
-            alert('✅ 照片已刪除');
-            if(refreshCallback) refreshCallback();
-            else location.reload();
-        } else alert('❌ 刪除失敗：'+result.message);
+        if(result.success) { alert('✅ 照片已刪除'); if(refreshCallback) refreshCallback(); else location.reload(); }
+        else alert('❌ 刪除失敗：'+result.message);
     } catch(e) { alert('❌ 刪除失敗：網路錯誤'); console.error(e); }
 }
 async function setAsAvatar(imageUrl) {
@@ -341,18 +133,14 @@ async function editDisplayName(userId, currentName) {
     }
 }
 function renderPhotoGrid(photos) {
-    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片，快上傳第一張吧！</div>';
+    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
     let html = '<div class="photo-grid">';
     photos.forEach(photo => {
-        // 優先使用顯示名稱，沒有則用截短的 userId
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
                     <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay">
-                            <div>👤 ${displayName}</div>
-                            <div>❤️ ${formatTime(photo.time)}</div>
-                        </div>
+                        <div class="photo-overlay"><div>👤 ${displayName}</div><div>❤️ ${formatTime(photo.time)}</div></div>
                     </div>
                 </div>`;
     });
@@ -393,150 +181,84 @@ async function showAllPhotos() {
     const container=document.getElementById('mainContainer');
     container.innerHTML='<div class="loading">📷 載入照片中...</div>';
     try {
-        // 先載入使用者列表（取得顯示名稱對照表）
         const usersRes = await fetch('/api/users');
         const users = await usersRes.json();
         userNameMap.clear();
-        users.forEach(user => {
-            if (user.userId && user.displayName) {
-                userNameMap.set(user.userId, user.displayName);
-            }
-        });
-        
-        // 再載入照片
+        users.forEach(user => { if(user.userId && user.displayName) userNameMap.set(user.userId, user.displayName); });
         const res = await fetch('/api/photos');
         allPhotos = await res.json();
         container.innerHTML = renderPhotoGrid(allPhotos);
-    } catch(e) { 
-        container.innerHTML='<div class="loading">❌ 載入失敗</div>'; 
-    }
+    } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
-// ========== 新版 showUserPhotos（含個人資料、留言板） ==========
 async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName}🎭`;
-    
+    modalTitle.innerHTML = `👤 ${titleName} 🎭`;
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入中...</div>';
-    
     userModal.style.display = 'block';
     document.body.style.overflow = 'hidden';
-    
-    // 修正後的程式碼片段
-let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
-try {
-    const profileRes = await fetch(`/api/user/profile/${userId}`);
-    const apiProfile = await profileRes.json();
-    if (apiProfile) profile = { ...profile, ...apiProfile };
-} catch(e) {}
-
-// --- 新增的邏輯開始 ---
-// 如果使用者沒有設定頭像 (avatarUrl 是空的)
-if (!profile.avatarUrl) {
     try {
-        // 去抓他的最新照片
-        const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos = await photoRes.json();
-        // 如果有照片，就把最新一張的網址設為頭像
-        if (photos && photos.length > 0) {
-            profile.avatarUrl = photos[0].imageUrl;
-            console.log(`使用者 ${userId} 沒有頭像，已自動使用最新照片：${profile.avatarUrl}`);
-        }
-    } catch(photoError) {
-        console.error('無法載入最新照片作為預設頭像：', photoError);
-        // 如果連照片都抓不到，就維持原本的灰色預設圖(profile.avatarUrl 會是 null)
-    }
-}
-// --- 新增的邏輯結束 ---try {
         let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
         try {
             const profileRes = await fetch(`/api/user/profile/${userId}`);
             const apiProfile = await profileRes.json();
             if (apiProfile) profile = { ...profile, ...apiProfile };
         } catch(e) {}
-        
+        if (!profile.avatarUrl) {
+            try {
+                const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+                const photos = await photoRes.json();
+                if (photos && photos.length > 0) profile.avatarUrl = photos[0].imageUrl;
+            } catch(photoError) { console.error('無法載入最新照片作為預設頭像', photoError); }
+        }
         const messagesRes = await fetch(`/api/messages/${userId}`);
         let allMessages = await messagesRes.json();
-        
-        const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos = await photoRes.json();
-        
-        // 留言分頁：先顯示最新 5 則
-        let messagePage = 1;
-        const MESSAGES_PER_PAGE = 3;
-        
-       function renderMessages(page) {
-    const start = 0;
-    const end = page * MESSAGES_PER_PAGE;
-    const visibleMessages = allMessages.slice(start, end);
-    const hasMore = allMessages.length > end;
-    
-    let messagesHtml = '';
-    visibleMessages.forEach(msg => {
-        const isOwner = currentUserId === msg.senderId;
-       messagesHtml += `
-    <div class="message-item" data-message-id="${msg.id}" style="border-bottom: 1px solid #f0f0f0; padding: 10px 0; display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="flex: 1;">
-            <div style="margin-bottom: 4px;">
-                <strong style="font-size: 13px;">${escapeHtml(msg.senderName)}</strong>
-                <span style="font-size: 11px; color: #999; margin-left: 6px;">${formatTime(msg.time)}</span>
-            </div>
-            <div style="font-size: 14px; color: #333; word-break: break-word; white-space: pre-wrap;">${escapeHtml(msg.content)}</div>
-        </div>
-        <div style="display: flex; gap: 12px; align-items: center; margin-left: 12px;">
-            <button onclick="likeMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #ff4444;">❤️ <span class="like-count-${msg.id}">${msg.likes || 0}</span></button>
-            <button onclick="replyToMessage('${msg.id}', '${userId}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #666;">💬 回覆</button>
-            ${currentUserId === msg.senderId ? `<button onclick="deleteMessage('${msg.id}')" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #999;">🗑️</button>` : ''}
-        </div>
-    </div>
-`;
-    });
-    
-    if (hasMore) {
-        messagesHtml += `
-            <div style="text-align: center; padding: 10px;">
-                <button onclick="loadMoreMessages()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px;">📖 載入更多留言</button>
-            </div>
-        `;
-    }
-    
-    return messagesHtml;
-}
-        // 儲存渲染函數到全域，讓按鈕可以呼叫
+        const photoRes2 = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+        const photos = await photoRes2.json();
+        const MESSAGES_PER_PAGE = 5;
+        function renderMessages(page) {
+            const end = page * MESSAGES_PER_PAGE;
+            const visibleMessages = allMessages.slice(0, end);
+            const hasMore = allMessages.length > end;
+            let messagesHtml = '';
+            visibleMessages.forEach(msg => {
+                messagesHtml += `
+                    <div class="message-item" data-message-id="${msg.id}" style="border-bottom:1px solid #f0f0f0; padding:10px 0; display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div style="flex:1;">
+                            <div style="margin-bottom:4px;"><strong style="font-size:13px;">${escapeHtml(msg.senderName)}</strong><span style="font-size:11px; color:#999; margin-left:6px;">${formatTime(msg.time)}</span></div>
+                            <div style="font-size:14px; color:#333; white-space:pre-wrap;">${escapeHtml(msg.content)}</div>
+                        </div>
+                        <div style="display:flex; gap:12px; align-items:center; margin-left:12px;">
+                            <button onclick="likeMessage('${msg.id}')" style="background:none; border:none; cursor:pointer; font-size:13px; color:#ff4444;">❤️ <span class="like-count-${msg.id}">${msg.likes||0}</span></button>
+                            <button onclick="replyToMessage('${msg.id}','${userId}')" style="background:none; border:none; cursor:pointer; font-size:13px; color:#666;">💬 回覆</button>
+                            ${currentUserId === msg.senderId ? `<button onclick="deleteMessage('${msg.id}')" style="background:none; border:none; cursor:pointer; font-size:13px; color:#999;">🗑️</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            if(hasMore) messagesHtml += `<div style="text-align:center; padding:10px;"><button onclick="loadMoreMessages()" style="background:none; border:none; color:#667eea; cursor:pointer;">📖 載入更多留言</button></div>`;
+            return messagesHtml;
+        }
         window.currentMessagesData = { allMessages, userId, renderMessages, messagesContainer: null };
-        
         let html = `
             <div class="profile-messages-wrapper">
-                <div class="profile-section">
-                    <div style="text-align: center;">
-                        <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #667eea; margin-bottom: 12px;">
-                        <h2 style="margin: 0 0 4px; font-size: 20px;">${escapeHtml(profile.displayName || titleName)}</h2>
-                        <p style="color: #666; font-size: 13px; margin: 8px 0; white-space: pre-wrap;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
-                        <div style="margin-top: 10px;">
-                            ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #E4405F;">📷 IG</a>` : ''}
-                            ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin: 0 6px; text-decoration: none; color: #1877F2;">📘 FB</a>` : ''}
-                        </div>
-                        ${currentUserId === userId ? `
-                        <div style="margin-top: 16px;">
-                            <button onclick="editProfile('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-size: 14px;">✏️ 編輯自我介紹</button>
-                        </div>
-                        ` : ''}
-                    </div>
+                <div class="profile-section" style="text-align:center;">
+                    <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #667eea; margin-bottom:12px;">
+                    <h2 style="margin:0 0 4px; font-size:20px;">${escapeHtml(profile.displayName || titleName)}</h2>
+                    <p style="color:#666; font-size:13px; margin:8px 0;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
+                    <div>${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin:0 6px; color:#E4405F;">📷 IG</a>` : ''}${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin:0 6px; color:#1877F2;">📘 FB</a>` : ''}</div>
+                    ${currentUserId === userId ? `<div style="margin-top:16px;"><button onclick="editProfile('${userId}')" style="background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer;">✏️ 編輯自我介紹</button></div>` : ''}
                 </div>
-                
                 <div class="messages-section">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                        <span style="font-size: 16px; font-weight: bold;">💬 留言板</span>
-                        <input type="text" id="messageInput" placeholder="寫下你的留言...(限50字元)" maxlength="50" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 14px;">
-                        <button onclick="postMessage('${userId}')" style="background: #667eea; color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer;">發送</button>
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+                        <span style="font-size:16px; font-weight:bold;">💬 留言板</span>
+                        <input type="text" id="messageInput" placeholder="寫下你的留言...(限50字元)" maxlength="50" style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:25px; outline:none;">
+                        <button onclick="postMessage('${userId}')" style="background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer;">發送</button>
                     </div>
-                    <div id="messagesList" style="max-height: 400px; overflow-y: auto;">
-                        ${renderMessages(1)}
-                    </div>
+                    <div id="messagesList" style="max-height:400px; overflow-y:auto;">${renderMessages(1)}</div>
                 </div>
             </div>
-            
             <div class="user-photo-grid">
                 ${photos.map(photo => `
                     <div class="user-photo-card" data-url="${photo.imageUrl}">
@@ -549,173 +271,71 @@ if (!profile.avatarUrl) {
                 `).join('')}
             </div>
         `;
-        
         grid.innerHTML = html;
-        
-        // 儲存參考
         window.currentMessagesData.messagesContainer = document.getElementById('messagesList');
         window.currentMessagesData.renderMessages = renderMessages;
         window.currentMessagesData.loadMore = function() {
             const currentPage = Math.ceil(window.currentMessagesData.messagesContainer.querySelectorAll('.message-item').length / MESSAGES_PER_PAGE) || 1;
-            const newHtml = renderMessages(currentPage + 1);
-            window.currentMessagesData.messagesContainer.innerHTML = newHtml;
+            window.currentMessagesData.messagesContainer.innerHTML = renderMessages(currentPage + 1);
         };
-        
-        window.loadMoreMessages = function() {
-            if (window.currentMessagesData.loadMore) {
-                window.currentMessagesData.loadMore();
-            }
-        };
-        
-    } catch (error) {
-        console.error('載入失敗：', error);
-        grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
-    }
+        window.loadMoreMessages = () => { if(window.currentMessagesData.loadMore) window.currentMessagesData.loadMore(); };
+    } catch(error) { console.error('載入失敗', error); grid.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
 }
-// ========== 留言回覆功能 ==========
-async function replyToMessage(parentMessageId, targetUserId) {
-    const content = prompt('輸入回覆內容：');
-    if (!content || !content.trim()) return;
-    if (content.length > 200) {
-        alert('回覆內容不能超過 200 字');
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/messages/reply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                parentMessageId,
-                targetUserId,
-                senderId: currentUserId,
-                content: content.trim()
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('回覆成功！');
-            // 重新載入留言板
-            if (window.currentMessagesData && window.currentMessagesData.userId) {
-                showUserPhotos(window.currentMessagesData.userId, '', '', '', '', '');
-            }
-        } else {
-            alert('回覆失敗');
-        }
-    } catch(e) {
-        console.error('回覆失敗', e);
-        alert('回覆失敗，請稍後再試');
-    }
-}
-
-// ========== 刪除留言 ==========
-async function deleteMessage(messageId) {
-    if (!confirm('確定要刪除這則留言嗎？')) return;
-    
-    try {
-        const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`, {
-            method: 'DELETE'
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('留言已刪除');
-            // 重新載入留言板
-            if (window.currentMessagesData && window.currentMessagesData.userId) {
-                showUserPhotos(window.currentMessagesData.userId, '', '', '', '', '');
-            }
-        } else {
-            alert('刪除失敗');
-        }
-    } catch(e) {
-        console.error('刪除失敗', e);
-        alert('刪除失敗，請稍後再試');
-    }
-}
-// ========== 輔助函數：編輯個人資料 ==========
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
-    if (bio !== null) {
-        fetch('/api/user/profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userId, bio: bio })
-        }).then(() => {
-            alert('個人資料已更新');
-            showUserPhotos(userId, '', '', bio, '', '');
-        }).catch(() => alert('更新失敗'));
-    }
+    if(bio !== null) fetch('/api/user/profile',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) }).then(()=>{ alert('個人資料已更新'); showUserPhotos(userId,'','',bio,'',''); }).catch(()=>alert('更新失敗'));
 }
-
-// ========== 輔助函數：發送留言 ==========
 function postMessage(targetUserId) {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
-    if (!content) return alert('請輸入留言內容');
-    if (content.length > 50) return alert('留言不能超過 50 個字');
-    
-    fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId, senderId: currentUserId, content })
-    }).then(async res => {
-        const result = await res.json();
-        if (result.success) {
-            input.value = '';
-            showUserPhotos(targetUserId, '', '', '', '', '');
-        } else {
-            alert('留言失敗');
-        }
-    }).catch(() => alert('留言失敗'));
+    if(!content) return alert('請輸入留言內容');
+    if(content.length>50) return alert('留言不能超過50字');
+    fetch('/api/messages',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ targetUserId, senderId:currentUserId, content }) }).then(async res=>{ const result=await res.json(); if(result.success){ input.value=''; showUserPhotos(targetUserId,'','','','',''); } else alert('留言失敗'); }).catch(()=>alert('留言失敗'));
 }
-
-// ========== 輔助函數：留言按讚 ==========
 async function likeMessage(messageId) {
     try {
-        const res = await fetch('/api/messages/like', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messageId, userId: currentUserId })
-        });
+        const res = await fetch('/api/messages/like',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ messageId, userId:currentUserId }) });
         const data = await res.json();
-        if (data.success) {
-            const likeSpan = document.querySelector(`.like-count-${messageId}`);
-            if (likeSpan) likeSpan.textContent = data.likes;
-        }
-    } catch(e) {
-        console.error('按讚失敗', e);
-        alert('按讚失敗，請稍後再試');
-    }
+        if(data.success){ const span=document.querySelector(`.like-count-${messageId}`); if(span) span.textContent=data.likes; }
+    } catch(e){ alert('按讚失敗'); }
 }
-
-// ========== 輔助函數：HTML跳脫 ==========
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+async function replyToMessage(parentMessageId, targetUserId) {
+    const content = prompt('輸入回覆內容：');
+    if(!content||!content.trim()) return;
+    if(content.length>200){ alert('回覆內容不能超過200字'); return; }
+    try {
+        const res = await fetch('/api/messages/reply',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ parentMessageId, targetUserId, senderId:currentUserId, content:content.trim() }) });
+        const data = await res.json();
+        if(data.success){ alert('回覆成功！'); showUserPhotos(targetUserId,'','','','',''); }
+        else alert('回覆失敗');
+    } catch(e){ alert('回覆失敗'); }
 }
-
-function closeUserModal() { userModal.style.display='none'; document.body.style.overflow='auto'; }
-function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false) {
+async function deleteMessage(messageId) {
+    if(!confirm('確定要刪除這則留言嗎？')) return;
+    try {
+        const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`,{ method:'DELETE' });
+        const data = await res.json();
+        if(data.success){ alert('留言已刪除'); if(window.currentMessagesData?.userId) showUserPhotos(window.currentMessagesData.userId,'','','','',''); }
+        else alert('刪除失敗');
+    } catch(e){ alert('刪除失敗'); }
+}
+function escapeHtml(text){ if(!text) return ''; const div=document.createElement('div'); div.textContent=text; return div.innerHTML; }
+function closeUserModal(){ userModal.style.display='none'; document.body.style.overflow='auto'; }
+function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false){
     modalImg.src=imageUrl;
-    const isOwner = currentUserId && userId===currentUserId;
-    const showDelete = fromUserModal && isOwner;
+    const isOwner=currentUserId&&userId===currentUserId;
+    const showDelete=fromUserModal&&isOwner;
     modalInfo.innerHTML=`<div>👤 ${truncateUserId(userId)}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
     photoModal.style.display='block';
 }
-function deleteCurrentPhoto(imageUrl,userId) {
-    photoModal.style.display='none';
-    showConfirm(imageUrl,userId,()=>{ location.reload(); });
-}
+function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
 userModal.onclick=(e)=>{ if(e.target===userModal) closeUserModal(); };
-
 const allBtn=document.querySelector('.nav-buttons button:first-child'), usersBtn=document.querySelector('.nav-buttons button:last-child');
 const newAllBtn=allBtn.cloneNode(true), newUsersBtn=usersBtn.cloneNode(true);
 allBtn.parentNode.replaceChild(newAllBtn,allBtn);
 usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
 newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
-
 setInterval(()=>{ if(currentView==='all') showAllPhotos(); },6000000);
 showAllPhotos();
 </script>
