@@ -16,12 +16,6 @@
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         .nav-btn:hover { background:#f0f0f0; }
         
-        .filter-bar { display: flex; gap: 10px; padding: 10px; background: white; border-bottom: 1px solid #dbdbdb; flex-wrap: wrap; align-items: center; }
-        .filter-btn { background: none; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
-        .filter-btn.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
-        .filter-btn:hover { background: #f0f0f0; }
-        .date-select { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; }
-        
         .container { width:100%; margin:0; padding:0; }
         
         .users-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:20px; margin-bottom:40px; padding:20px; }
@@ -61,6 +55,33 @@
         .profile-messages-wrapper { display:flex; gap:12px; padding:12px; background:#fafafa; }
         .profile-section { flex:1; background:white; border-radius:16px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
         .messages-section { flex:2; background:white; border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* 個人相簿內的標籤篩選列 */
+        .profile-tag-filter {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+        .profile-tag-btn {
+            background: none;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .profile-tag-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        .profile-tag-btn:hover {
+            background: #f0f0f0;
+        }
+        
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
         .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
         .user-photo-card img { width:100%; height:auto; display:block; }
@@ -88,21 +109,6 @@
 </head>
 <body>
 <div class="navbar"><div class="navbar-content"><div class="logo">📸</div><div class="nav-buttons"><button class="nav-btn active">🏠</button><button class="nav-btn">👥</button></div></div></div>
-<div class="filter-bar">
-    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">🏠 全部</button>
-    <button class="filter-btn" data-filter="風景" onclick="setFilter('風景')">🌄 風景</button>
-    <button class="filter-btn" data-filter="美食" onclick="setFilter('美食')">🍜 美食</button>
-    <button class="filter-btn" data-filter="人物" onclick="setFilter('人物')">👤 人物</button>
-    
-    <div style="display: flex; gap: 8px; margin-left: auto;">
-        <select id="yearSelect" class="date-select" onchange="onYearChange()">
-            <option value="all">📅 全部年份</option>
-        </select>
-        <select id="monthSelect" class="date-select" onchange="onMonthChange()">
-            <option value="all">📆 全部月份</option>
-        </select>
-    </div>
-</div>
 <div class="container" id="mainContainer"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 <div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
@@ -112,11 +118,7 @@
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 let userNameMap = new Map();
 let currentUserId = localStorage.getItem('userId');
-let currentTagFilter = 'all';
-let currentYear = 'all';
-let currentMonth = 'all';
-let availableYears = [];
-let availableMonths = new Map();
+let currentProfileTagFilter = 'all';
 
 if(!currentUserId) console.log('⚠️ 未登入，只能瀏覽');
 
@@ -186,115 +188,8 @@ function renderPhotoGrid(photos) {
     html += '</div>';
     return html;
 }
-async function loadDateOptions() {
-    const res = await fetch('/api/photos');
-    const photos = await res.json();
-    const years = new Set();
-    const monthsMap = new Map();
-    photos.forEach(photo => {
-        let yearMonth = photo.yearMonth;
-        if (!yearMonth && photo.time) yearMonth = photo.time.substring(0, 7);
-        if (yearMonth) {
-            const year = yearMonth.substring(0, 4);
-            const month = yearMonth.substring(5, 7);
-            years.add(year);
-            if (!monthsMap.has(year)) monthsMap.set(year, new Set());
-            monthsMap.get(year).add(month);
-        }
-    });
-    availableYears = Array.from(years).sort().reverse();
-    availableMonths = monthsMap;
-    const yearSelect = document.getElementById('yearSelect');
-    yearSelect.innerHTML = '<option value="all">📅 全部年份</option>';
-    availableYears.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = `${year}年`;
-        yearSelect.appendChild(option);
-    });
-    const monthSelect = document.getElementById('monthSelect');
-    monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
-}
-function onYearChange() {
-    const yearSelect = document.getElementById('yearSelect');
-    currentYear = yearSelect.value;
-    const monthSelect = document.getElementById('monthSelect');
-    if (currentYear === 'all') {
-        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
-        currentMonth = 'all';
-        monthSelect.value = 'all';
-    } else {
-        const months = availableMonths.get(currentYear) || new Set();
-        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
-        const sortedMonths = Array.from(months).sort().reverse();
-        sortedMonths.forEach(month => {
-            const option = document.createElement('option');
-            option.value = month;
-            option.textContent = `${month}月`;
-            monthSelect.appendChild(option);
-        });
-        currentMonth = 'all';
-        monthSelect.value = 'all';
-    }
-    applyDateFilter();
-}
-function onMonthChange() {
-    const monthSelect = document.getElementById('monthSelect');
-    currentMonth = monthSelect.value;
-    applyDateFilter();
-}
-async function applyDateFilter() {
-    if (currentView !== 'all') return;
-    const container = document.getElementById('mainContainer');
-    container.innerHTML = '<div class="loading">📷 載入中...</div>';
-    try {
-        let photos = [];
-        if (currentTagFilter === 'all') {
-            const res = await fetch('/api/photos');
-            photos = await res.json();
-        } else {
-            const res = await fetch(`/api/photos/tag/${encodeURIComponent(currentTagFilter)}`);
-            photos = await res.json();
-        }
-        if (currentYear !== 'all') {
-            photos = photos.filter(photo => {
-                let yearMonth = photo.yearMonth;
-                if (!yearMonth && photo.time) yearMonth = photo.time.substring(0, 7);
-                if (!yearMonth) return false;
-                const year = yearMonth.substring(0, 4);
-                if (currentYear !== year) return false;
-                if (currentMonth !== 'all') {
-                    const month = yearMonth.substring(5, 7);
-                    if (currentMonth !== month) return false;
-                }
-                return true;
-            });
-        }
-        container.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-async function setFilter(tag) {
-    currentTagFilter = tag;
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        if(btn.dataset.filter === tag) btn.classList.add('active');
-        else btn.classList.remove('active');
-    });
-    await applyDateFilter();
-}
 async function showUsers() {
     currentView='users';
-    currentTagFilter = 'all';
-    currentYear = 'all';
-    currentMonth = 'all';
-    document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
-    document.querySelector('.nav-buttons button:last-child').classList.add('active');
-    document.querySelectorAll('.filter-btn').forEach(btn=>btn.classList.remove('active'));
-    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
-    if(allBtn) allBtn.classList.add('active');
-    const yearSelect = document.getElementById('yearSelect');
-    if(yearSelect) yearSelect.value = 'all';
-    const monthSelect = document.getElementById('monthSelect');
-    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
     const container=document.getElementById('mainContainer');
     container.innerHTML='<div class="loading">👥 載入成員中...</div>';
     try {
@@ -320,21 +215,20 @@ async function showUsers() {
 }
 async function showAllPhotos() {
     currentView='all';
-    currentTagFilter = 'all';
-    currentYear = 'all';
-    currentMonth = 'all';
-    document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
-    document.querySelector('.nav-buttons button:first-child').classList.add('active');
-    document.querySelectorAll('.filter-btn').forEach(btn=>btn.classList.remove('active'));
-    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
-    if(allBtn) allBtn.classList.add('active');
-    const yearSelect = document.getElementById('yearSelect');
-    if(yearSelect) yearSelect.value = 'all';
-    const monthSelect = document.getElementById('monthSelect');
-    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
-    await applyDateFilter();
+    const container=document.getElementById('mainContainer');
+    container.innerHTML='<div class="loading">📷 載入照片中...</div>';
+    try {
+        const usersRes = await fetch('/api/users');
+        const users = await usersRes.json();
+        userNameMap.clear();
+        users.forEach(user => { if(user.userId && user.displayName) userNameMap.set(user.userId, user.displayName); });
+        const res = await fetch('/api/photos');
+        allPhotos = await res.json();
+        container.innerHTML = renderPhotoGrid(allPhotos);
+    } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
 async function showUserPhotos(userId, displayName, bio, ig, fb) {
+    currentProfileTagFilter = 'all';
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
     modalTitle.innerHTML = `👤 ${titleName}`;
@@ -358,8 +252,42 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
         }
         const messagesRes = await fetch(`/api/messages/${userId}`);
         let allMessages = await messagesRes.json();
-        const photoRes2 = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
-        const photos = await photoRes2.json();
+        
+        // 載入照片並根據標籤篩選
+        let allPhotosData = [];
+        const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+        allPhotosData = await photoRes.json();
+        
+        function filterPhotosByTag(tag) {
+            if (tag === 'all') return allPhotosData;
+            return allPhotosData.filter(photo => photo.tag === tag);
+        }
+        
+        function renderPhotos(tag) {
+            const photos = filterPhotosByTag(tag);
+            if (photos.length === 0) return '<div class="loading" style="padding:20px;">📸 暫無照片</div>';
+            let html = '<div class="user-photo-grid">';
+            photos.forEach(photo => {
+                const fullDate = formatFullDateTime(photo.time);
+                html += `
+                    <div class="user-photo-card" data-url="${photo.imageUrl}">
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                        ${currentUserId === userId ? `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}', '${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}')">🏷️</button>` : ''}
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                            <img src="${photo.imageUrl}" loading="lazy">
+                        </div>
+                        <div style="padding: 4px 8px; background: rgba(0,0,0,0.05); font-size: 11px; color: #666;">
+                            📅 ${fullDate}
+                            ${photo.tag ? `<span style="margin-left: 8px;">🏷️ ${photo.tag}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+        
         const MESSAGES_PER_PAGE = 5;
         function renderMessages(page) {
             const end = page * MESSAGES_PER_PAGE;
@@ -384,7 +312,10 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
             if(hasMore) messagesHtml += `<div style="text-align:center; padding:10px;"><button onclick="loadMoreMessages()" style="background:none; border:none; color:#667eea; cursor:pointer;">📖 載入更多留言</button></div>`;
             return messagesHtml;
         }
+        
         window.currentMessagesData = { allMessages, userId, renderMessages, messagesContainer: null };
+        window.currentUserData = { userId, displayName, bio, ig, fb, profile };
+        
         let html = `
             <div class="profile-messages-wrapper">
                 <div class="profile-section" style="text-align:center;">
@@ -393,6 +324,14 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
                     <p style="color:#666; font-size:13px; margin:8px 0;">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
                     <div>${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank" style="margin:0 6px; color:#E4405F;">📷 IG</a>` : ''}${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank" style="margin:0 6px; color:#1877F2;">📘 FB</a>` : ''}</div>
                     ${currentUserId === userId ? `<div style="margin-top:16px;"><button onclick="editProfile('${userId}')" style="background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer;">✏️ 編輯自我介紹</button></div>` : ''}
+                    
+                    <!-- 個人相簿標籤篩選列 -->
+                    <div class="profile-tag-filter">
+                        <button class="profile-tag-btn ${currentProfileTagFilter === 'all' ? 'active' : ''}" onclick="setProfileTagFilter('all')">🏠 全部</button>
+                        <button class="profile-tag-btn ${currentProfileTagFilter === '風景' ? 'active' : ''}" onclick="setProfileTagFilter('風景')">🌄 風景</button>
+                        <button class="profile-tag-btn ${currentProfileTagFilter === '美食' ? 'active' : ''}" onclick="setProfileTagFilter('美食')">🍜 美食</button>
+                        <button class="profile-tag-btn ${currentProfileTagFilter === '人物' ? 'active' : ''}" onclick="setProfileTagFilter('人物')">👤 人物</button>
+                    </div>
                 </div>
                 <div class="messages-section">
                     <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
@@ -403,26 +342,12 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
                     <div id="messagesList" style="max-height:400px; overflow-y:auto;">${renderMessages(1)}</div>
                 </div>
             </div>
-            <div class="user-photo-grid">
-                ${photos.map(photo => {
-                    const fullDate = formatFullDateTime(photo.time);
-                    return `
-                    <div class="user-photo-card" data-url="${photo.imageUrl}">
-                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
-                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                        ${currentUserId === userId ? `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')">🏷️</button>` : ''}
-                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
-                            <img src="${photo.imageUrl}" loading="lazy">
-                            <div class="photo-overlay" style="opacity:1; background:none; color:#333; padding:0; margin-top:4px; position:relative;">
-                                <div>📅 ${fullDate}</div>
-                                ${photo.message ? `<div>💬 ${photo.message}</div>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `}).join('')}
+            <div id="userPhotosContainer" style="margin-top: 12px;">
+                ${renderPhotos(currentProfileTagFilter)}
             </div>
         `;
         grid.innerHTML = html;
+        
         window.currentMessagesData.messagesContainer = document.getElementById('messagesList');
         window.currentMessagesData.renderMessages = renderMessages;
         window.currentMessagesData.loadMore = function() {
@@ -430,9 +355,25 @@ async function showUserPhotos(userId, displayName, bio, ig, fb) {
             window.currentMessagesData.messagesContainer.innerHTML = renderMessages(currentPage + 1);
         };
         window.loadMoreMessages = () => { if(window.currentMessagesData.loadMore) window.currentMessagesData.loadMore(); };
+        
+        window.setProfileTagFilter = function(tag) {
+            currentProfileTagFilter = tag;
+            document.querySelectorAll('.profile-tag-btn').forEach(btn => {
+                if(btn.innerText.includes('🏠') && tag === 'all') btn.classList.add('active');
+                else if(btn.innerText.includes('🌄') && tag === '風景') btn.classList.add('active');
+                else if(btn.innerText.includes('🍜') && tag === '美食') btn.classList.add('active');
+                else if(btn.innerText.includes('👤') && tag === '人物') btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            const photosContainer = document.getElementById('userPhotosContainer');
+            if (photosContainer) {
+                photosContainer.innerHTML = renderPhotos(tag);
+            }
+        };
+        
     } catch(error) { console.error('載入失敗', error); grid.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
 }
-async function editPhotoTag(imageUrl, currentTag) {
+async function editPhotoTag(imageUrl, currentTag, userId, displayName, bio, ig, fb) {
     const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物\n\n輸入編號或名稱', currentTag);
     if(!newTag) return;
     let tagValue = '';
@@ -447,7 +388,7 @@ async function editPhotoTag(imageUrl, currentTag) {
             body: JSON.stringify({ imageUrl, userId: currentUserId, tag: tagValue })
         });
         alert('標籤已更新');
-        showUserPhotos(currentUserId, '', '', '', '');
+        showUserPhotos(userId, displayName, bio, ig, fb);
     }
 }
 function editProfile(userId) {
@@ -507,8 +448,6 @@ allBtn.parentNode.replaceChild(newAllBtn,allBtn);
 usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
 newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
-setInterval(()=>{ if(currentView==='all') showAllPhotos(); },6000000);
-loadDateOptions();
 showAllPhotos();
 </script>
 </body>
