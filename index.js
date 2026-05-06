@@ -26,7 +26,7 @@ let photosSheet = null;
 let settingsSheet = null;
 let messagesSheet = null;
 
-// 暫存照片說明文字（等待使用者輸入）
+// 暫存照片說明文字
 let pendingCaption = {};
 
 async function initGoogleSheets() {
@@ -187,7 +187,6 @@ app.post('/webhook', async (req, res) => {
     console.log(`\n📸 [${new Date().toLocaleString()}] 使用者：${userId.substring(0,8)}...`);
     
     try {
-      // 處理圖片
       if (messageType === 'image') {
         const messageId = event.message.id;
         console.log(`   📸 收到圖片：${messageId}`);
@@ -202,19 +201,16 @@ app.post('/webhook', async (req, res) => {
         const imageUrl = await uploadToCloudinary(imageResponse.data);
         
         if (imageUrl) {
-          // 暫存圖片 URL，等待使用者輸入說明文字
           pendingCaption[userId] = { imageUrl, timestamp: Date.now() };
           await replyToUser(replyToken, '📸 照片已收到！請在 1 分鐘內輸入這段照片的說明文字～\n（直接傳送文字即可，如不想寫請傳送「略過」）');
         } else {
           await replyToUser(replyToken, '❌ 圖片上傳失敗，請稍後再試');
         }
       }
-      // 處理文字訊息（可能為照片說明）
       else if (messageType === 'text' && userMessage) {
         const pending = pendingCaption[userId];
         
         if (pending && (Date.now() - pending.timestamp) < 60000) {
-          // 1 分鐘內：作為照片說明
           const caption = (userMessage === '略過' || userMessage === 'skip') ? '' : userMessage;
           await savePhotoToSheet(userId, pending.imageUrl, caption);
           delete pendingCaption[userId];
@@ -225,7 +221,6 @@ app.post('/webhook', async (req, res) => {
             `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://fbtestbot.onrender.com/user/${userId}`
           );
         } else {
-          // 沒有等待中的照片，或已超時
           await replyToUser(replyToken, '請先傳送照片，再為它加上一段話～\n（傳送照片後有 1 分鐘可以寫說明）');
         }
       }
@@ -238,7 +233,7 @@ app.post('/webhook', async (req, res) => {
 
 // ========== 照片牆 API ==========
 
-// 取得全部照片
+// 取得全部照片（含標籤、年月）
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -289,7 +284,7 @@ app.get('/api/photos/user/:userId', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 依標籤篩選照片
+// 依標籤篩選
 app.get('/api/photos/tag/:tag', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -313,7 +308,7 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 依年月篩選照片
+// 依年月篩選
 app.get('/api/photos/date/:yearMonth', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -335,6 +330,23 @@ app.get('/api/photos/date/:yearMonth', async (req, res) => {
     photos.reverse();
     res.json(photos);
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 更新照片標籤
+app.post('/api/photo/tag', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
+  try {
+    const { imageUrl, userId, tag } = req.body;
+    const rows = await photosSheet.getRows();
+    for (const row of rows) {
+      if (row.get('圖片URL') === imageUrl && row.get('使用者ID') === userId) {
+        row.set('標籤', tag);
+        await row.save();
+        break;
+      }
+    }
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 // 取得所有使用者列表
@@ -441,23 +453,6 @@ app.post('/api/user/avatar', async (req, res) => {
         '頭像URL': avatarUrl || '',
         '更新時間': new Date().toISOString()
       });
-    }
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
-
-// 更新照片標籤
-app.post('/api/photo/tag', async (req, res) => {
-  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
-  try {
-    const { imageUrl, userId, tag } = req.body;
-    const rows = await photosSheet.getRows();
-    for (const row of rows) {
-      if (row.get('圖片URL') === imageUrl && row.get('使用者ID') === userId) {
-        row.set('標籤', tag);
-        await row.save();
-        break;
-      }
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
