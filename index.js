@@ -11,7 +11,6 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
 // ========== Cloudinary 設定 ==========
 cloudinary.config({
@@ -26,6 +25,9 @@ let googleSheetReady = false;
 let photosSheet = null;
 let settingsSheet = null;
 let messagesSheet = null;
+
+// 暫存照片說明文字（等待使用者輸入）
+let pendingCaption = {};
 
 async function initGoogleSheets() {
   try {
@@ -57,7 +59,7 @@ async function initGoogleSheets() {
       photosSheet = await doc.addSheet({ title: '照片牆' });
       console.log('✅ 已建立「照片牆」工作表');
     }
-    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '角色', '原始訊息'];
+    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
     await photosSheet.loadHeaderRow();
     const currentHeaders = photosSheet.headerValues;
     if (currentHeaders.length === 0 || currentHeaders[0] !== '時間') {
@@ -74,7 +76,6 @@ async function initGoogleSheets() {
       settingsSheet = await doc.addSheet({ title: '使用者設定', headerValues: ['使用者ID', '顯示名稱', '頭像URL', '自我介紹', 'IG帳號', 'FB帳號', '更新時間'] });
       console.log('✅ 已建立「使用者設定」工作表');
     } else {
-      // 確保有新的欄位
       await settingsSheet.loadHeaderRow();
       const currentHeaders2 = settingsSheet.headerValues;
       if (!currentHeaders2.includes('自我介紹')) {
@@ -86,7 +87,7 @@ async function initGoogleSheets() {
     // 留言板工作表
     messagesSheet = doc.sheetsByTitle['留言板'];
     if (!messagesSheet) {
-      messagesSheet = await doc.addSheet({ title: '留言板', headerValues: ['留言ID', '目標使用者ID', '留言者ID', '留言內容', '時間', '按讚數'] });
+      messagesSheet = await doc.addSheet({ title: '留言板', headerValues: ['留言ID', '目標使用者ID', '留言者ID', '留言內容', '時間', '按讚數', '父留言ID'] });
       console.log('✅ 已建立「留言板」工作表');
     }
     
@@ -127,80 +128,23 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
 }
 
 // ========== 儲存圖片到 Google Sheets ==========
-async function savePhotoToSheet(userId, imageUrl, role, userMessage = '') {
+async function savePhotoToSheet(userId, imageUrl, caption = '') {
   if (!googleSheetReady || !photosSheet) return false;
+  const yearMonth = new Date().toISOString().substring(0, 7);
   try {
     await photosSheet.addRow({
       '時間': new Date().toISOString(),
       '使用者ID': userId,
       '圖片URL': imageUrl,
-      '角色': role,
-      '原始訊息': userMessage || ''
+      '原始訊息': caption || '',
+      '標籤': '',
+      '年月': yearMonth
     });
     console.log(`📸 照片已儲存`);
     return true;
   } catch (error) {
     console.error('❌ 儲存失敗：', error.message);
     return false;
-  }
-}
-
-// ========== 對話記憶 ==========
-const userConversations = {};
-const MAX_HISTORY_MESSAGES = 20;
-function getConversationHistory(userId) {
-  if (!userConversations[userId]) userConversations[userId] = [];
-  return userConversations[userId];
-}
-function addToHistory(userId, role, content) {
-  const history = getConversationHistory(userId);
-  history.push({ role, content });
-  while (history.length > MAX_HISTORY_MESSAGES) history.shift();
-}
-setInterval(() => {
-  const users = Object.keys(userConversations);
-  if (users.length) {
-    console.log(`🧹 清理 ${users.length} 位使用者的對話記錄`);
-    for (const userId of users) delete userConversations[userId];
-  }
-}, 24 * 60 * 60 * 1000);
-
-// ========== 角色設定 ==========
-let ROLES = {};
-function loadRoles() {
-  try {
-    const data = fs.readFileSync('./roles.json', 'utf8');
-    ROLES = JSON.parse(data);
-    console.log(`✅ 已載入 ${Object.keys(ROLES).length} 個角色：${Object.keys(ROLES).join(', ')}`);
-  } catch (error) {
-    console.error('❌ 讀取 roles.json 失敗：', error.message);
-    ROLES = {};
-  }
-}
-loadRoles();
-setInterval(loadRoles, 60000);
-
-// ========== DeepSeek 呼叫 ==========
-async function callDeepSeekWithMemory(userId, userMessage, systemPrompt) {
-  const history = getConversationHistory(userId);
-  const messages = [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: userMessage }];
-  try {
-    const response = await axios.post('https://api.deepseek.com/chat/completions', {
-      model: 'deepseek-chat',
-      messages,
-      temperature: 0.8,
-      max_tokens: 1000
-    }, {
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_API_KEY}` },
-      timeout: 15000
-    });
-    const reply = response.data.choices[0].message.content;
-    addToHistory(userId, 'user', userMessage);
-    addToHistory(userId, 'assistant', reply);
-    return reply;
-  } catch (error) {
-    console.error('❌ DeepSeek 錯誤：', error.response?.data || error.message);
-    return '抱歉，AI 暫時無法回應，請稍後再試。';
   }
 }
 
@@ -225,55 +169,75 @@ app.get('/user/:userId', (req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>我的相簿</title><script>localStorage.setItem('userId','${req.params.userId}');window.location.href='/photowall';</script></head><body>載入中...</body></html>`);
 });
 
-// ========== LINE Webhook ==========
-app.post('/webhook/:role', async (req, res) => {
+// ========== LINE Webhook（純相簿模式） ==========
+app.post('/webhook', async (req, res) => {
   res.status(200).send('OK');
-  const role = req.params.role;
-  const roleConfig = ROLES[role];
-  if (!roleConfig) return;
+  
   const events = req.body.events;
   if (!events) return;
+  
   for (const event of events) {
     const replyToken = event.replyToken;
     const userMessage = event.message?.text;
     const userId = event.source?.userId;
     const messageType = event.message?.type;
+    
     if (!userId) continue;
-    console.log(`\n🎭 [${new Date().toLocaleString()}] 角色「${roleConfig.name}」👤 ${userId.substring(0,8)}...`);
+    
+    console.log(`\n📸 [${new Date().toLocaleString()}] 使用者：${userId.substring(0,8)}...`);
+    
     try {
+      // 處理圖片
       if (messageType === 'image') {
-        const imageResponse = await axios.get(`https://api-data.line.me/v2/bot/message/${event.message.id}/content`, {
+        const messageId = event.message.id;
+        console.log(`   📸 收到圖片：${messageId}`);
+        
+        const imageResponse = await axios.get(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
           headers: { 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` },
           responseType: 'arraybuffer',
           timeout: 30000
         });
         console.log(`   ✅ 下載完成：${(imageResponse.data.length/1024).toFixed(2)} KB`);
+        
         const imageUrl = await uploadToCloudinary(imageResponse.data);
+        
         if (imageUrl) {
-          await savePhotoToSheet(userId, imageUrl, roleConfig.name, userMessage || '圖片分享');
-         await replyToUser(replyToken, 
-  `📸 照片已上傳成功！\n\n` +
-  `🏠 全部照片牆（看所有人）：\nhttps://fbtestbot.onrender.com/photowall\n\n` +
-  `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://fbtestbot.onrender.com/user/${userId}\n\n` +
-  `💡 點「👥 成員」可以看到所有人，點頭像可留言`
-);
+          // 暫存圖片 URL，等待使用者輸入說明文字
+          pendingCaption[userId] = { imageUrl, timestamp: Date.now() };
+          await replyToUser(replyToken, '📸 照片已收到！請在 1 分鐘內輸入這段照片的說明文字～\n（直接傳送文字即可，如不想寫請傳送「略過」）');
         } else {
-          await replyToUser(replyToken, `❌ 圖片上傳失敗，請稍後再試`);
+          await replyToUser(replyToken, '❌ 圖片上傳失敗，請稍後再試');
         }
-      } else if (messageType === 'text' && userMessage) {
-        const aiReply = await callDeepSeekWithMemory(userId, userMessage, roleConfig.systemPrompt);
-        await replyToUser(replyToken, aiReply);
-      } else if (replyToken) {
-        await replyToUser(replyToken, roleConfig.welcome);
+      }
+      // 處理文字訊息（可能為照片說明）
+      else if (messageType === 'text' && userMessage) {
+        const pending = pendingCaption[userId];
+        
+        if (pending && (Date.now() - pending.timestamp) < 60000) {
+          // 1 分鐘內：作為照片說明
+          const caption = (userMessage === '略過' || userMessage === 'skip') ? '' : userMessage;
+          await savePhotoToSheet(userId, pending.imageUrl, caption);
+          delete pendingCaption[userId];
+          
+          await replyToUser(replyToken, 
+            `✅ 照片已儲存！${caption ? `\n📝 "${caption}"` : ''}\n\n` +
+            `🏠 全部照片牆：\nhttps://fbtestbot.onrender.com/photowall\n\n` +
+            `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://fbtestbot.onrender.com/user/${userId}`
+          );
+        } else {
+          // 沒有等待中的照片，或已超時
+          await replyToUser(replyToken, '請先傳送照片，再為它加上一段話～\n（傳送照片後有 1 分鐘可以寫說明）');
+        }
       }
     } catch (error) {
       console.error(`   ❌ 錯誤：`, error.message);
-      if (replyToken) await replyToUser(replyToken, `❌ 處理失敗：${error.message}`);
+      if (replyToken) await replyToUser(replyToken, '❌ 處理失敗，請稍後再試');
     }
   }
 });
 
 // ========== 照片牆 API ==========
+
 // 取得全部照片
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
@@ -289,8 +253,9 @@ app.get('/api/photos', async (req, res) => {
         time: row.get('時間') || '',
         userId,
         imageUrl,
-        role: row.get('角色') || '未知角色',
-        message: row.get('原始訊息') || ''
+        message: row.get('原始訊息') || '',
+        tag: row.get('標籤') || '',
+        yearMonth: row.get('年月') || ''
       });
     }
     photos.reverse();
@@ -314,11 +279,60 @@ app.get('/api/photos/user/:userId', async (req, res) => {
         time: row.get('時間') || '',
         userId,
         imageUrl,
-        role: row.get('角色') || '未知角色',
-        message: row.get('原始訊息') || ''
+        message: row.get('原始訊息') || '',
+        tag: row.get('標籤') || '',
+        yearMonth: row.get('年月') || ''
       });
     }
     photos.sort((a,b) => new Date(b.time) - new Date(a.time));
+    res.json(photos);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 依標籤篩選照片
+app.get('/api/photos/tag/:tag', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.json([]);
+  try {
+    const tag = req.params.tag;
+    const rows = await photosSheet.getRows();
+    const photos = [];
+    for (const row of rows) {
+      const rowTag = row.get('標籤') || '';
+      if (rowTag !== tag) continue;
+      photos.push({
+        time: row.get('時間') || '',
+        userId: row.get('使用者ID'),
+        imageUrl: row.get('圖片URL'),
+        message: row.get('原始訊息') || '',
+        tag: rowTag,
+        yearMonth: row.get('年月') || ''
+      });
+    }
+    photos.reverse();
+    res.json(photos);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 依年月篩選照片
+app.get('/api/photos/date/:yearMonth', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.json([]);
+  try {
+    const yearMonth = req.params.yearMonth;
+    const rows = await photosSheet.getRows();
+    const photos = [];
+    for (const row of rows) {
+      const rowYearMonth = row.get('年月') || '';
+      if (rowYearMonth !== yearMonth) continue;
+      photos.push({
+        time: row.get('時間') || '',
+        userId: row.get('使用者ID'),
+        imageUrl: row.get('圖片URL'),
+        message: row.get('原始訊息') || '',
+        tag: row.get('標籤') || '',
+        yearMonth: rowYearMonth
+      });
+    }
+    photos.reverse();
     res.json(photos);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -332,13 +346,11 @@ app.get('/api/users', async (req, res) => {
     for (const row of rows) {
       const userId = row.get('使用者ID') || '';
       const imageUrl = row.get('圖片URL') || '';
-      const role = row.get('角色') || '';
       if (!userId || userId === 'test_user') continue;
       if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
       if (!usersMap.has(userId)) {
         usersMap.set(userId, {
           userId,
-          role,
           photoCount: 0,
           latestPhoto: imageUrl,
           latestTime: row.get('時間') || ''
@@ -372,7 +384,6 @@ app.get('/api/users', async (req, res) => {
       const setting = settingsMap.get(user.userId) || {};
       return {
         userId: user.userId,
-        role: user.role,
         photoCount: user.photoCount,
         latestPhoto: setting.avatarUrl || user.latestPhoto,
         displayName: setting.displayName || null,
@@ -430,6 +441,23 @@ app.post('/api/user/avatar', async (req, res) => {
         '頭像URL': avatarUrl || '',
         '更新時間': new Date().toISOString()
       });
+    }
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// 更新照片標籤
+app.post('/api/photo/tag', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
+  try {
+    const { imageUrl, userId, tag } = req.body;
+    const rows = await photosSheet.getRows();
+    for (const row of rows) {
+      if (row.get('圖片URL') === imageUrl && row.get('使用者ID') === userId) {
+        row.set('標籤', tag);
+        await row.save();
+        break;
+      }
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -520,51 +548,49 @@ app.post('/api/user/profile', async (req, res) => {
 });
 
 // ========== 留言板 API ==========
-// ========== 留言板 API（含顯示名稱） ==========
 app.get('/api/messages/:userId', async (req, res) => {
-    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
-    try {
-        const targetUserId = req.params.userId;
-        const rows = await messagesSheet.getRows();
-        
-        // 讀取使用者設定（用於將留言者ID轉換為顯示名稱）
-        let settingsMap = new Map();
-        if (settingsSheet) {
-            const settingsRows = await settingsSheet.getRows();
-            for (const row of settingsRows) {
-                const uid = row.get('使用者ID');
-                if (uid) {
-                    settingsMap.set(uid, {
-                        displayName: row.get('顯示名稱') || uid.substring(0, 8),
-                        avatarUrl: row.get('頭像URL') || ''
-                    });
-                }
-            }
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const targetUserId = req.params.userId;
+    const rows = await messagesSheet.getRows();
+    
+    let settingsMap = new Map();
+    if (settingsSheet) {
+      const settingsRows = await settingsSheet.getRows();
+      for (const row of settingsRows) {
+        const uid = row.get('使用者ID');
+        if (uid) {
+          settingsMap.set(uid, {
+            displayName: row.get('顯示名稱') || uid.substring(0, 8),
+            avatarUrl: row.get('頭像URL') || ''
+          });
         }
-        
-        const messages = [];
-        for (const row of rows) {
-            if (row.get('目標使用者ID') === targetUserId) {
-                const senderId = row.get('留言者ID');
-                const senderInfo = settingsMap.get(senderId) || { displayName: senderId?.substring(0, 8), avatarUrl: '' };
-                
-                messages.push({
-                    id: row.get('留言ID'),
-                    senderId: senderId,
-                    senderName: senderInfo.displayName,
-                    senderAvatar: senderInfo.avatarUrl,
-                    content: row.get('留言內容'),
-                    time: row.get('時間'),
-                    likes: parseInt(row.get('按讚數')) || 0,
-                    parentId: row.get('父留言ID') || null
-                });
-            }
-        }
-        messages.reverse(); // 最新的在前
-        res.json(messages);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+      }
     }
+    
+    const messages = [];
+    for (const row of rows) {
+      if (row.get('目標使用者ID') === targetUserId) {
+        const senderId = row.get('留言者ID');
+        const senderInfo = settingsMap.get(senderId) || { displayName: senderId?.substring(0, 8), avatarUrl: '' };
+        
+        messages.push({
+          id: row.get('留言ID'),
+          senderId: senderId,
+          senderName: senderInfo.displayName,
+          senderAvatar: senderInfo.avatarUrl,
+          content: row.get('留言內容'),
+          time: row.get('時間'),
+          likes: parseInt(row.get('按讚數')) || 0,
+          parentId: row.get('父留言ID') || null
+        });
+      }
+    }
+    messages.reverse();
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/messages', async (req, res) => {
@@ -584,7 +610,8 @@ app.post('/api/messages', async (req, res) => {
       '留言者ID': senderId,
       '留言內容': content,
       '時間': new Date().toISOString(),
-      '按讚數': 0
+      '按讚數': 0,
+      '父留言ID': ''
     });
     
     res.json({ success: true, messageId: newId });
@@ -592,99 +619,92 @@ app.post('/api/messages', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-// ========== 留言按讚 API ==========
+
 app.post('/api/messages/like', async (req, res) => {
-    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
-    try {
-        const { messageId, userId } = req.body;
-        if (!messageId) return res.status(400).json({ error: '缺少留言ID' });
-        
-        const rows = await messagesSheet.getRows();
-        const targetRow = rows.find(row => row.get('留言ID') == messageId);
-        
-        if (!targetRow) return res.status(404).json({ error: '留言不存在' });
-        
-        const currentLikes = parseInt(targetRow.get('按讚數')) || 0;
-        targetRow.set('按讚數', currentLikes + 1);
-        await targetRow.save();
-        
-        res.json({ success: true, likes: currentLikes + 1 });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const { messageId } = req.body;
+    if (!messageId) return res.status(400).json({ error: '缺少留言ID' });
+    
+    const rows = await messagesSheet.getRows();
+    const targetRow = rows.find(row => row.get('留言ID') == messageId);
+    
+    if (!targetRow) return res.status(404).json({ error: '留言不存在' });
+    
+    const currentLikes = parseInt(targetRow.get('按讚數')) || 0;
+    targetRow.set('按讚數', currentLikes + 1);
+    await targetRow.save();
+    
+    res.json({ success: true, likes: currentLikes + 1 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// ========== 刪除留言 API ==========
 app.delete('/api/messages/:messageId', async (req, res) => {
-    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
-    try {
-        const messageId = req.params.messageId;
-        const userId = req.query.userId;
-        
-        const rows = await messagesSheet.getRows();
-        const targetRow = rows.find(row => row.get('留言ID') == messageId);
-        
-        if (!targetRow) return res.status(404).json({ error: '留言不存在' });
-        
-        await targetRow.delete();
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const messageId = req.params.messageId;
+    const rows = await messagesSheet.getRows();
+    const targetRow = rows.find(row => row.get('留言ID') == messageId);
+    
+    if (!targetRow) return res.status(404).json({ error: '留言不存在' });
+    
+    await targetRow.delete();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// ========== 新增回覆留言 API ==========
-// ========== 新增回覆留言 API ==========
 app.post('/api/messages/reply', async (req, res) => {
-    if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
-    try {
-        const { parentMessageId, targetUserId, senderId, content } = req.body;
-        if (!parentMessageId || !content) return res.status(400).json({ error: '缺少必要參數' });
-        
-        const rows = await messagesSheet.getRows();
-        const parentMessage = rows.find(row => row.get('留言ID') == parentMessageId);
-        
-        // 取得原留言者的顯示名稱
-        let parentSenderName = parentMessage?.get('留言者ID') || 'unknown';
-        if (settingsSheet) {
-            const settingsRows = await settingsSheet.getRows();
-            const parentSetting = settingsRows.find(row => row.get('使用者ID') === parentMessage?.get('留言者ID'));
-            if (parentSetting) parentSenderName = parentSetting.get('顯示名稱') || parentSenderName.substring(0, 8);
-        }
-        
-        const parentContent = parentMessage ? parentMessage.get('留言內容') : '原留言已不存在';
-        const newId = rows.length + 1;
-        
-        const replyContent = `🔁 回覆 @${parentSenderName}：「${parentContent.substring(0, 50)}${parentContent.length > 50 ? '…' : ''}」\n---\n${content}`;
-        
-        await messagesSheet.addRow({
-            '留言ID': newId,
-            '目標使用者ID': targetUserId,
-            '留言者ID': senderId,
-            '留言內容': replyContent,
-            '時間': new Date().toISOString(),
-            '按讚數': 0,
-            '父留言ID': parentMessageId
-        });
-        
-        res.json({ success: true, messageId: newId });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+  try {
+    const { parentMessageId, targetUserId, senderId, content } = req.body;
+    if (!parentMessageId || !content) return res.status(400).json({ error: '缺少必要參數' });
+    
+    const rows = await messagesSheet.getRows();
+    const parentMessage = rows.find(row => row.get('留言ID') == parentMessageId);
+    
+    let parentSenderName = parentMessage?.get('留言者ID') || 'unknown';
+    if (settingsSheet) {
+      const settingsRows = await settingsSheet.getRows();
+      const parentSetting = settingsRows.find(row => row.get('使用者ID') === parentMessage?.get('留言者ID'));
+      if (parentSetting) parentSenderName = parentSetting.get('顯示名稱') || parentSenderName.substring(0, 8);
     }
+    
+    const parentContent = parentMessage ? parentMessage.get('留言內容') : '原留言已不存在';
+    const newId = rows.length + 1;
+    
+    const replyContent = `🔁 回覆 @${parentSenderName}：「${parentContent.substring(0, 50)}${parentContent.length > 50 ? '…' : ''}」\n---\n${content}`;
+    
+    await messagesSheet.addRow({
+      '留言ID': newId,
+      '目標使用者ID': targetUserId,
+      '留言者ID': senderId,
+      '留言內容': replyContent,
+      '時間': new Date().toISOString(),
+      '按讚數': 0,
+      '父留言ID': parentMessageId
+    });
+    
+    res.json({ success: true, messageId: newId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
+
 // ========== 照片牆網頁 ==========
 app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
 });
 
-// 健康檢查
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // 啟動伺服器
 const port = process.env.PORT || 3000;
 app.listen(port, async () => {
-  console.log(`🚀 伺服器啟動，port: ${port}`);
-  console.log(`📋 角色：${Object.keys(ROLES).join(', ')}`);
+  console.log(`🚀 純相簿機器人啟動，port: ${port}`);
   await initGoogleSheets();
   if (googleSheetReady) console.log(`📸 照片牆：https://fbtestbot.onrender.com/photowall`);
 });
