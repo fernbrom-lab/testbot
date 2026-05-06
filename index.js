@@ -26,7 +26,7 @@ let photosSheet = null;
 let settingsSheet = null;
 let messagesSheet = null;
 
-// 暫存照片說明文字
+// 暫存照片資訊，讓使用者可以補充說明文字
 let pendingCaption = {};
 
 async function initGoogleSheets() {
@@ -53,22 +53,42 @@ async function initGoogleSheets() {
     console.log('✅ 文件載入成功');
     googleSheetDoc = doc;
     
-   // 照片牆工作表
-photosSheet = doc.sheetsByTitle['照片牆'];
-if (!photosSheet) {
-  photosSheet = await doc.addSheet({ title: '照片牆' });
-  console.log('✅ 已建立「照片牆」工作表');
-}
-const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
-await photosSheet.loadHeaderRow();
-const currentHeaders = photosSheet.headerValues;
-if (currentHeaders.length === 0 || currentHeaders[0] !== '時間') {
-  console.log('🔄 重新設定標題列...');
-  await photosSheet.clear();
-  photosSheet.headerValues = expectedHeaders;
-  await photosSheet.setHeaderRow(expectedHeaders);
-  console.log('✅ 標題列已設定');
-}
+    // 照片牆工作表
+    photosSheet = doc.sheetsByTitle['照片牆'];
+    if (!photosSheet) {
+      photosSheet = await doc.addSheet({ title: '照片牆' });
+      console.log('✅ 已建立「照片牆」工作表');
+    }
+    
+    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
+    let currentHeaders = [];
+    
+    try {
+      await photosSheet.loadHeaderRow();
+      currentHeaders = photosSheet.headerValues;
+    } catch (error) {
+      console.log('⚠️ 讀取標題列失敗，將嘗試手動設定');
+      currentHeaders = [];
+    }
+    
+    let headerIsValid = currentHeaders.length === expectedHeaders.length;
+    if (headerIsValid) {
+      for (let i = 0; i < expectedHeaders.length; i++) {
+        if (currentHeaders[i] !== expectedHeaders[i]) {
+          headerIsValid = false;
+          break;
+        }
+      }
+    }
+    
+    if (!headerIsValid) {
+      console.log('🔄 標題列不正確或為空，重新設定...');
+      await photosSheet.clear();
+      await photosSheet.setHeaderRow(expectedHeaders);
+      console.log('✅ 標題列已重新設定為：', expectedHeaders);
+    } else {
+      console.log('✅ 標題列檢查通過');
+    }
     
     // 使用者設定工作表
     settingsSheet = doc.sheetsByTitle['使用者設定'];
@@ -148,6 +168,26 @@ async function savePhotoToSheet(userId, imageUrl, caption = '') {
   }
 }
 
+// ========== 更新照片說明文字 ==========
+async function updatePhotoCaption(imageUrl, caption) {
+  if (!googleSheetReady || !photosSheet) return false;
+  try {
+    const rows = await photosSheet.getRows();
+    for (const row of rows) {
+      if (row.get('圖片URL') === imageUrl) {
+        row.set('原始訊息', caption || '');
+        await row.save();
+        console.log(`📝 已更新照片說明：${caption || '無'}`);
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ 更新說明失敗：', error.message);
+    return false;
+  }
+}
+
 // ========== 回覆輔助函數 ==========
 async function replyToUser(replyToken, message) {
   if (!replyToken) return;
@@ -160,6 +200,17 @@ async function replyToUser(replyToken, message) {
     console.error('回覆失敗：', error.response?.data || error.message);
   }
 }
+
+// ========== 定期清理過期的 pendingCaption ==========
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, data] of Object.entries(pendingCaption)) {
+    if (now - data.timestamp > 60000) {
+      delete pendingCaption[userId];
+      console.log(`🧹 已清理使用者 ${userId.substring(0,8)}... 的 pending 狀態`);
+    }
+  }
+}, 30000);
 
 // ========== 根目錄轉址 ==========
 app.get('/', (req, res) => res.redirect('/photowall'));
@@ -201,8 +252,17 @@ app.post('/webhook', async (req, res) => {
         const imageUrl = await uploadToCloudinary(imageResponse.data);
         
         if (imageUrl) {
+          // 先儲存照片（說明文字為空）
+          await savePhotoToSheet(userId, imageUrl, '');
+          
+          // 暫存資訊，讓使用者可以在 1 分鐘內補充說明
           pendingCaption[userId] = { imageUrl, timestamp: Date.now() };
-          await replyToUser(replyToken, '📸 照片已收到！請在 1 分鐘內輸入這段照片的說明文字～\n（直接傳送文字即可，如不想寫請傳送「略過」）');
+          await replyToUser(replyToken, 
+            `📸 照片已儲存！\n\n` +
+            `📝 如需加上說明文字，請在 1 分鐘內輸入（直接傳送文字即可）\n` +
+            `⏸️ 不想寫說明請傳送「略過」\n\n` +
+            `🏠 照片牆：https://fbtestbot.onrender.com/photowall`
+          );
         } else {
           await replyToUser(replyToken, '❌ 圖片上傳失敗，請稍後再試');
         }
@@ -211,16 +271,17 @@ app.post('/webhook', async (req, res) => {
         const pending = pendingCaption[userId];
         
         if (pending && (Date.now() - pending.timestamp) < 60000) {
+          // 1 分鐘內：更新照片說明
           const caption = (userMessage === '略過' || userMessage === 'skip') ? '' : userMessage;
-          await savePhotoToSheet(userId, pending.imageUrl, caption);
+          await updatePhotoCaption(pending.imageUrl, caption);
           delete pendingCaption[userId];
           
           await replyToUser(replyToken, 
-            `✅ 照片已儲存！${caption ? `\n📝 "${caption}"` : ''}\n\n` +
-            `🏠 全部照片牆：\nhttps://fbtestbot.onrender.com/photowall\n\n` +
-            `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://fbtestbot.onrender.com/user/${userId}`
+            `✅ 已${caption ? `加上說明：「${caption}」` : '略過說明'}！\n\n` +
+            `🏠 照片牆：https://fbtestbot.onrender.com/photowall`
           );
         } else {
+          // 沒有等待中的照片，或已超時
           await replyToUser(replyToken, '請先傳送照片，再為它加上一段話～\n（傳送照片後有 1 分鐘可以寫說明）');
         }
       }
