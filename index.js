@@ -53,22 +53,22 @@ async function initGoogleSheets() {
     console.log('✅ 文件載入成功');
     googleSheetDoc = doc;
     
-    // 照片牆工作表
-    photosSheet = doc.sheetsByTitle['照片牆'];
-    if (!photosSheet) {
-      photosSheet = await doc.addSheet({ title: '照片牆' });
-      console.log('✅ 已建立「照片牆」工作表');
-    }
-    const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
-    await photosSheet.loadHeaderRow();
-    const currentHeaders = photosSheet.headerValues;
-    if (currentHeaders.length === 0 || currentHeaders[0] !== '時間') {
-      console.log('🔄 重新設定標題列...');
-      await photosSheet.clear();
-      photosSheet.headerValues = expectedHeaders;
-      await photosSheet.setHeaderRow(expectedHeaders);
-      console.log('✅ 標題列已設定');
-    }
+   // 照片牆工作表
+photosSheet = doc.sheetsByTitle['照片牆'];
+if (!photosSheet) {
+  photosSheet = await doc.addSheet({ title: '照片牆' });
+  console.log('✅ 已建立「照片牆」工作表');
+}
+const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月'];
+await photosSheet.loadHeaderRow();
+const currentHeaders = photosSheet.headerValues;
+if (currentHeaders.length === 0 || currentHeaders[0] !== '時間') {
+  console.log('🔄 重新設定標題列...');
+  await photosSheet.clear();
+  photosSheet.headerValues = expectedHeaders;
+  await photosSheet.setHeaderRow(expectedHeaders);
+  console.log('✅ 標題列已設定');
+}
     
     // 使用者設定工作表
     settingsSheet = doc.sheetsByTitle['使用者設定'];
