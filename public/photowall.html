@@ -138,9 +138,9 @@ function renderPhotoGrid(photos) {
     photos.forEach(photo => {
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
-                    <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.role}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
+                    <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}',false)">
                         <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300?text=載入失敗'">
-                        <div class="photo-overlay"><div>👤 ${displayName}</div><div>❤️ ${formatTime(photo.time)}</div></div>
+                        <div class="photo-overlay"><div>👤 ${displayName}</div><div>❤️ ${formatTime(photo.time)}</div>${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}</div>
                     </div>
                 </div>`;
     });
@@ -163,7 +163,7 @@ async function showUsers() {
             const displayName = user.displayName || truncateUserId(user.userId);
             html+=`<div class="user-card" style="position:relative;">
                         ${isSelf ? `<button class="edit-name-btn" onclick="event.stopPropagation(); editDisplayName('${user.userId}','${displayName}')">✏️</button>` : ''}
-                        <div onclick="showUserPhotos('${user.userId}','${user.role}','${user.displayName || ''}','${user.bio || ''}','${user.ig || ''}','${user.fb || ''}')">
+                        <div onclick="showUserPhotos('${user.userId}','${user.displayName || ''}','${user.bio || ''}','${user.ig || ''}','${user.fb || ''}')">
                             <img class="user-avatar" src="${user.latestPhoto}" onerror="this.src='https://via.placeholder.com/80?text=📷'">
                             <div class="user-name">${displayName}</div>
                             <div class="user-count">📸 ${user.photoCount} 張照片</div>
@@ -190,10 +190,10 @@ async function showAllPhotos() {
         container.innerHTML = renderPhotoGrid(allPhotos);
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
-async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
+async function showUserPhotos(userId, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
     const titleName = displayName || truncateUserId(userId);
-    modalTitle.innerHTML = `👤 ${titleName} 🎭`;
+    modalTitle.innerHTML = `👤 ${titleName}`;
     const grid = document.getElementById('userModalGrid');
     grid.innerHTML = '<div class="loading">📷 載入中...</div>';
     userModal.style.display = 'block';
@@ -216,7 +216,7 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
         let allMessages = await messagesRes.json();
         const photoRes2 = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
         const photos = await photoRes2.json();
-        const MESSAGES_PER_PAGE = 3;
+        const MESSAGES_PER_PAGE = 5;
         function renderMessages(page) {
             const end = page * MESSAGES_PER_PAGE;
             const visibleMessages = allMessages.slice(0, end);
@@ -262,9 +262,9 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
             <div class="user-photo-grid">
                 ${photos.map(photo => `
                     <div class="user-photo-card" data-url="${photo.imageUrl}">
-                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${role}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => { showUserPhotos('${userId}', '${displayName}', '${profile.bio || ''}', '${profile.ig || ''}', '${profile.fb || ''}'); })">🗑️</button>` : ''}
                         ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.role}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message || '').replace(/'/g, "\\'")}', true)">
                             <img src="${photo.imageUrl}" loading="lazy">
                         </div>
                     </div>
@@ -283,14 +283,14 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
 }
 function editProfile(userId) {
     const bio = prompt('請輸入自我介紹：');
-    if(bio !== null) fetch('/api/user/profile',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) }).then(()=>{ alert('個人資料已更新'); showUserPhotos(userId,'','',bio,'',''); }).catch(()=>alert('更新失敗'));
+    if(bio !== null) fetch('/api/user/profile',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) }).then(()=>{ alert('個人資料已更新'); showUserPhotos(userId,'',bio,'',''); }).catch(()=>alert('更新失敗'));
 }
 function postMessage(targetUserId) {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
     if(!content) return alert('請輸入留言內容');
     if(content.length>50) return alert('留言不能超過50字');
-    fetch('/api/messages',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ targetUserId, senderId:currentUserId, content }) }).then(async res=>{ const result=await res.json(); if(result.success){ input.value=''; showUserPhotos(targetUserId,'','','','',''); } else alert('留言失敗'); }).catch(()=>alert('留言失敗'));
+    fetch('/api/messages',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ targetUserId, senderId:currentUserId, content }) }).then(async res=>{ const result=await res.json(); if(result.success){ input.value=''; showUserPhotos(targetUserId,'','','',''); } else alert('留言失敗'); }).catch(()=>alert('留言失敗'));
 }
 async function likeMessage(messageId) {
     try {
@@ -306,7 +306,7 @@ async function replyToMessage(parentMessageId, targetUserId) {
     try {
         const res = await fetch('/api/messages/reply',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ parentMessageId, targetUserId, senderId:currentUserId, content:content.trim() }) });
         const data = await res.json();
-        if(data.success){ alert('回覆成功！'); showUserPhotos(targetUserId,'','','','',''); }
+        if(data.success){ alert('回覆成功！'); showUserPhotos(targetUserId,'','','',''); }
         else alert('回覆失敗');
     } catch(e){ alert('回覆失敗'); }
 }
@@ -315,17 +315,18 @@ async function deleteMessage(messageId) {
     try {
         const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`,{ method:'DELETE' });
         const data = await res.json();
-        if(data.success){ alert('留言已刪除'); if(window.currentMessagesData?.userId) showUserPhotos(window.currentMessagesData.userId,'','','','',''); }
+        if(data.success){ alert('留言已刪除'); if(window.currentMessagesData?.userId) showUserPhotos(window.currentMessagesData.userId,'','','',''); }
         else alert('刪除失敗');
     } catch(e){ alert('刪除失敗'); }
 }
 function escapeHtml(text){ if(!text) return ''; const div=document.createElement('div'); div.textContent=text; return div.innerHTML; }
 function closeUserModal(){ userModal.style.display='none'; document.body.style.overflow='auto'; }
-function showPhotoDetail(imageUrl,userId,role,time,message,fromUserModal=false){
+function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
     modalImg.src=imageUrl;
     const isOwner=currentUserId&&userId===currentUserId;
     const showDelete=fromUserModal&&isOwner;
-    modalInfo.innerHTML=`<div>👤 ${truncateUserId(userId)}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    const displayName = userNameMap.get(userId) || truncateUserId(userId);
+    modalInfo.innerHTML=`<div>👤 ${displayName}</div><div>🕒 ${new Date(time).toLocaleString('zh-TW')}</div>${message?`<div>💬 ${message}</div>`:''}${showDelete?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imageUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
     photoModal.style.display='block';
 }
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
