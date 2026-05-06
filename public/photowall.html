@@ -423,7 +423,32 @@ async function showUserPhotos(userId, role, displayName, bio, ig, fb) {
     userModal.style.display = 'block';
     document.body.style.overflow = 'hidden';
     
+    // 修正後的程式碼片段
+let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
+try {
+    const profileRes = await fetch(`/api/user/profile/${userId}`);
+    const apiProfile = await profileRes.json();
+    if (apiProfile) profile = { ...profile, ...apiProfile };
+} catch(e) {}
+
+// --- 新增的邏輯開始 ---
+// 如果使用者沒有設定頭像 (avatarUrl 是空的)
+if (!profile.avatarUrl) {
     try {
+        // 去抓他的最新照片
+        const photoRes = await fetch(`/api/photos/user/${encodeURIComponent(userId)}`);
+        const photos = await photoRes.json();
+        // 如果有照片，就把最新一張的網址設為頭像
+        if (photos && photos.length > 0) {
+            profile.avatarUrl = photos[0].imageUrl;
+            console.log(`使用者 ${userId} 沒有頭像，已自動使用最新照片：${profile.avatarUrl}`);
+        }
+    } catch(photoError) {
+        console.error('無法載入最新照片作為預設頭像：', photoError);
+        // 如果連照片都抓不到，就維持原本的灰色預設圖(profile.avatarUrl 會是 null)
+    }
+}
+// --- 新增的邏輯結束 ---try {
         let profile = { bio, ig, fb, avatarUrl: null, displayName: titleName };
         try {
             const profileRes = await fetch(`/api/user/profile/${userId}`);
