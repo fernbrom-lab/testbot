@@ -64,25 +64,18 @@
         .modal-info { color:white; padding:15px; text-align:center; }
         .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
         
-        /* 個人頁面專用導覽列 */
-        .personal-nav { background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+        /* 個人頁面專用導覽列（整合所有資訊） */
+        .personal-nav { background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; position:sticky; top:0; z-index:100; }
+        .personal-nav-row1 { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
         .personal-nav-left { display:flex; align-items:center; gap:12px; }
         .back-arrow { background:none; border:none; font-size:24px; cursor:pointer; padding:4px 8px; color:#333; }
         .personal-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #667eea; }
         .personal-name { font-weight:bold; font-size:16px; }
         .personal-action-btn { background:#667eea; color:white; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
-        .personal-tags { display:flex; gap:8px; margin-top:8px; }
+        .personal-bio { font-size:13px; color:#666; margin-bottom:8px; padding-left:52px; }
+        .personal-tags { display:flex; gap:8px; padding-left:52px; }
         .personal-tag-btn { background:none; border:none; padding:4px 12px; border-radius:20px; cursor:pointer; font-size:13px; }
         .personal-tag-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
-        
-        /* 個人資料區 */
-        .profile-section { background:white; border-radius:16px; padding:16px; margin:12px; box-shadow:0 1px 3px rgba(0,0,0,0.1); text-align:center; }
-        .profile-section img { width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid #667eea; margin-bottom:8px; }
-        .profile-section h2 { font-size:18px; margin:4px 0; }
-        .profile-section p { color:#666; font-size:13px; margin:4px 0; }
-        .profile-section .social-links { margin-top:8px; }
-        .profile-section .social-links a { margin:0 6px; text-decoration:none; font-size:14px; }
-        .edit-bio-btn { background:#667eea; color:white; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:12px; margin-top:8px; }
         
         /* 個人相簿照片 */
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
@@ -168,7 +161,7 @@ let userNameMap = new Map();
 let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 let pendingDeleteMsg = { messageId: null, refreshCallback: null };
 let currentPersonalUserId = null;
-let currentPersonalMode = 'photos'; // 'photos' or 'messages'
+let currentPersonalMode = 'photos';
 let currentMessages = [];
 let currentPhotosData = [];
 
@@ -310,7 +303,6 @@ function setNavToAvatars(html) {
     document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
 }
 function hideMainNavbar() { mainNavbar.classList.add('hide'); }
-function showMainNavbar() { mainNavbar.classList.remove('hide'); }
 
 // ========== 首頁 ==========
 async function showTimeline() {
@@ -418,7 +410,7 @@ async function replyToMessage(parentMessageId, targetUserId, content) {
     return await res.json();
 }
 
-// ========== 個人頁面 ==========
+// ========== 個人頁面（整合導覽列，無獨立個人資料容器） ==========
 async function showMyAlbum() {
     if(!currentUserId) { alert('請先從 LINE 個人連結登入'); return; }
     await showPersonalAlbum(currentUserId);
@@ -594,25 +586,26 @@ function renderPersonalPage(profile, userId) {
             showPersonalAlbum(uid);
         }
     };
+    window.editBio = async () => {
+        const bio = prompt('請輸入自我介紹：');
+        if(bio !== null) {
+            await fetch('/api/user/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) });
+            alert('個人資料已更新');
+            showPersonalAlbum(userId);
+        }
+    };
     
     const personalHtml = `
         <div class="personal-nav">
-            <div class="personal-nav-left">
-                <button class="back-arrow" onclick="showTimeline()">←</button>
-                <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
-                <span class="personal-name">${titleName}</span>
+            <div class="personal-nav-row1">
+                <div class="personal-nav-left">
+                    <button class="back-arrow" onclick="showTimeline()">←</button>
+                    <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
+                    <span class="personal-name">${titleName}</span>
+                </div>
+                <button id="personalActionBtn" class="personal-action-btn" onclick="switchToMessages()">💬 留言</button>
             </div>
-            <button id="personalActionBtn" class="personal-action-btn" onclick="switchToMessages()">💬 留言</button>
-        </div>
-        <div class="profile-section">
-            <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" onerror="this.src='https://via.placeholder.com/100'">
-            <h2>${titleName}</h2>
-            <p>${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
-            <div class="social-links">
-                ${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank">📷 IG</a>` : ''}
-                ${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank">📘 FB</a>` : ''}
-            </div>
-            ${isOwner ? `<button class="edit-bio-btn" onclick="editBio('${userId}')">✏️ 編輯自我介紹</button>` : ''}
+            <div class="personal-bio">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'} ${isOwner ? `<button onclick="editBio()" style="background:none; border:none; color:#667eea; cursor:pointer; font-size:12px;">✏️</button>` : ''}</div>
             <div class="personal-tags">
                 <button class="personal-tag-btn active" onclick="refreshPersonalPhotos('all')">🏠</button>
                 <button class="personal-tag-btn" onclick="refreshPersonalPhotos('風景')">🌄</button>
@@ -624,14 +617,6 @@ function renderPersonalPage(profile, userId) {
         <div id="personalMessagesDiv" style="display:none;">${renderMessagesContent()}</div>
     `;
     mainContainer.innerHTML = personalHtml;
-}
-async function editBio(userId) {
-    const bio = prompt('請輸入自我介紹：');
-    if(bio !== null) {
-        await fetch('/api/user/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) });
-        alert('個人資料已更新');
-        showPersonalAlbum(userId);
-    }
 }
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
