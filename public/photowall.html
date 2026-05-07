@@ -11,15 +11,19 @@
         .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
         .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
         .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; }
+        .nav-buttons { display:flex; gap:6px; }
+        .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; }
+        .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        .nav-btn:hover { background:#f0f0f0; }
         
-        /* 橫向滾動成員頭像 */
+        /* 群組頁專用：橫向滾動成員頭像 */
         .member-avatars {
             display: flex;
             gap: 8px;
             overflow-x: auto;
             scrollbar-width: thin;
-            max-width: 70%;
-            padding: 4px 0;
+            padding: 8px 0;
+            margin-bottom: 8px;
         }
         .member-avatar {
             width: 48px;
@@ -50,7 +54,7 @@
         }
         
         .filter-bar {
-            display: flex;
+            display: none;
             gap: 10px;
             padding: 10px;
             background: white;
@@ -189,9 +193,11 @@
 <body>
 <div class="navbar">
     <div class="navbar-content">
-        <div class="logo" onclick="showAllPhotos()">📸</div>
-        <div class="member-avatars" id="memberAvatars">
-            <div class="loading" style="padding:0; font-size:12px;">載入中...</div>
+        <div class="logo" onclick="showTimelinePhotos()">📸</div>
+        <div class="nav-buttons">
+            <button class="nav-btn" id="randomBtn" onclick="showRandomPhotos()">🎲</button>
+            <button class="nav-btn" id="groupBtn" onclick="showGroupView()">👥</button>
+            <button class="nav-btn" id="myAlbumBtn" onclick="goToMyAlbum()">👤</button>
         </div>
     </div>
 </div>
@@ -215,7 +221,7 @@
 <div id="userModal" class="user-modal"><div class="user-modal-header"><button class="back-btn" onclick="closeUserModal()">⬅️</button><div class="user-modal-title" id="userModalTitle"></div></div><div id="userModalGrid" class="user-modal-grid"></div></div>
 <div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 <script>
-let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+let allPhotos = [], currentView = 'timeline', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 let userNameMap = new Map();
 let currentUserId = null;
 let currentTagFilter = 'all';
@@ -223,7 +229,7 @@ let currentYear = 'all';
 let currentMonth = 'all';
 let availableYears = [];
 let availableMonths = new Map();
-let allMembers = []; // 儲存所有成員資料
+let allMembers = [];
 
 // 從 URL 讀取 userId 參數（LINE 個人連結會帶）
 const urlParams = new URLSearchParams(window.location.search);
@@ -383,12 +389,16 @@ function onYearChange() {
         currentMonth = 'all';
         monthSelect.value = 'all';
     }
-    loadGroupPhotos();
+    if (currentView === 'group') {
+        loadGroupRandomPhotos();
+    }
 }
 function onMonthChange() {
     const monthSelect = document.getElementById('monthSelect');
     currentMonth = monthSelect.value;
-    loadGroupPhotos();
+    if (currentView === 'group') {
+        loadGroupRandomPhotos();
+    }
 }
 async function setFilter(tag) {
     currentTagFilter = tag;
@@ -396,12 +406,116 @@ async function setFilter(tag) {
         if(btn.dataset.filter === tag) btn.classList.add('active');
         else btn.classList.remove('active');
     });
-    loadGroupPhotos();
+    if (currentView === 'group') {
+        loadGroupRandomPhotos();
+    }
 }
-// 載入群組照片（亂數 + 篩選）
-async function loadGroupPhotos() {
+// ========== 首頁：時間序照片 ==========
+async function showTimelinePhotos() {
+    currentView = 'timeline';
+    filterBar.style.display = 'none';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     const container = document.getElementById('mainContainer');
-    container.innerHTML = '<div class="loading">📷 載入照片中...</div>';
+    container.innerHTML = '<div class="loading">📷 載入中...</div>';
+    try {
+        const usersRes = await fetch('/api/users');
+        const users = await usersRes.json();
+        userNameMap.clear();
+        users.forEach(user => { if(user.userId && user.displayName) userNameMap.set(user.userId, user.displayName); });
+        const res = await fetch('/api/photos');
+        let photos = await res.json();
+        photos.sort((a, b) => new Date(b.time) - new Date(a.time));
+        container.innerHTML = renderPhotoGrid(photos);
+    } catch(e) { 
+        container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
+}
+// ========== 隨機探索 ==========
+async function showRandomPhotos() {
+    currentView = 'random';
+    filterBar.style.display = 'none';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
+    try {
+        const usersRes = await fetch('/api/users');
+        const users = await usersRes.json();
+        userNameMap.clear();
+        users.forEach(user => { if(user.userId && user.displayName) userNameMap.set(user.userId, user.displayName); });
+        const res = await fetch('/api/photos');
+        let photos = await res.json();
+        for (let i = photos.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [photos[i], photos[j]] = [photos[j], photos[i]];
+        }
+        container.innerHTML = renderPhotoGrid(photos);
+    } catch(e) {
+        container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
+}
+// ========== 群組頁：橫向成員頭像 + 亂數群組照片 + 篩選列 ==========
+async function showGroupView() {
+    currentView = 'group';
+    filterBar.style.display = 'flex';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">👥 載入群組中...</div>';
+    try {
+        // 載入成員頭像
+        await loadMemberAvatars();
+        // 載入亂數群組照片
+        await loadGroupRandomPhotos();
+    } catch(e) {
+        container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
+}
+// 載入成員頭像（橫向滾動）
+async function loadMemberAvatars() {
+    try {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        allMembers = users;
+        // 按最新上傳時間排序，取前 5 位
+        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
+        const recent5 = sorted.slice(0, 5);
+        const hasMore = users.length > 5;
+        
+        let html = '<div class="member-avatars">';
+        recent5.forEach(user => {
+            const avatarUrl = user.latestPhoto || 'https://via.placeholder.com/48';
+            const displayName = user.displayName || truncateUserId(user.userId);
+            html += `<img class="member-avatar" src="${avatarUrl}" alt="${displayName}" title="${displayName}" onclick="goToUserAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
+        });
+        if (hasMore) {
+            html += `<div class="member-avatar more-avatar" onclick="showAllMembers()">⋯</div>`;
+        }
+        html += '</div>';
+        // 在 container 開頭插入成員頭像區
+        const container = document.getElementById('mainContainer');
+        // 檢查是否已經有 member-avatars 區塊，避免重複
+        if (!container.querySelector('.member-avatars')) {
+            container.insertAdjacentHTML('afterbegin', html);
+        } else {
+            container.querySelector('.member-avatars').outerHTML = html;
+        }
+    } catch(e) {
+        console.error('載入成員頭像失敗', e);
+    }
+}
+// 載入群組亂數照片
+async function loadGroupRandomPhotos() {
+    const container = document.getElementById('mainContainer');
+    // 移除舊的照片網格（保留成員頭像區）
+    const oldGrid = container.querySelector('.photo-grid');
+    const memberSection = container.querySelector('.member-avatars');
+    
+    let loadingHtml = '<div class="loading">🎲 載入群組照片中...</div>';
+    if (memberSection) {
+        memberSection.insertAdjacentHTML('afterend', loadingHtml);
+    } else {
+        container.innerHTML = loadingHtml;
+    }
+    
     try {
         let photos = [];
         if (currentTagFilter === 'all') {
@@ -426,42 +540,23 @@ async function loadGroupPhotos() {
                 return true;
             });
         }
-        // 隨機排序（每次進入都重新亂數）
+        // 隨機排序
         for (let i = photos.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [photos[i], photos[j]] = [photos[j], photos[i]];
         }
-        container.innerHTML = renderPhotoGrid(photos);
+        const photosHtml = renderPhotoGrid(photos);
+        
+        if (memberSection) {
+            memberSection.insertAdjacentHTML('afterend', photosHtml);
+            // 移除 loading
+            const loading = container.querySelector('.loading');
+            if (loading && loading.innerText.includes('載入群組照片')) loading.remove();
+        } else {
+            container.innerHTML = photosHtml;
+        }
     } catch(e) {
         container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
-    }
-}
-// 載入成員頭像（導覽列橫向滾動）
-async function loadMemberAvatars() {
-    try {
-        const res = await fetch('/api/users');
-        const users = await res.json();
-        allMembers = users;
-        userNameMap.clear();
-        users.forEach(user => { if(user.userId && user.displayName) userNameMap.set(user.userId, user.displayName); });
-        
-        // 按最新上傳時間排序，取前 5 位
-        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
-        const recent5 = sorted.slice(0, 5);
-        const hasMore = users.length > 5;
-        
-        let html = '';
-        recent5.forEach(user => {
-            const avatarUrl = user.latestPhoto || 'https://via.placeholder.com/48';
-            const displayName = user.displayName || truncateUserId(user.userId);
-            html += `<img class="member-avatar" src="${avatarUrl}" alt="${displayName}" title="${displayName}" onclick="goToUserAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
-        });
-        if (hasMore) {
-            html += `<div class="member-avatar more-avatar" onclick="showAllMembers()">⋯</div>`;
-        }
-        document.getElementById('memberAvatars').innerHTML = html;
-    } catch(e) {
-        console.error('載入成員頭像失敗', e);
     }
 }
 // 點擊更多：顯示所有成員
@@ -470,39 +565,32 @@ function showAllMembers() {
     allMembers.forEach(user => {
         const avatarUrl = user.latestPhoto || 'https://via.placeholder.com/48';
         const displayName = user.displayName || truncateUserId(user.userId);
-        html += `<div style="text-align:center; width:80px; cursor:pointer;" onclick="goToUserAlbum('${user.userId}')">
+        html += `<div style="text-align:center; width:80px; cursor:pointer;" onclick="goToUserAlbum('${user.userId}'); document.querySelector('.member-modal')?.remove();">
                     <img src="${avatarUrl}" style="width:60px; height:60px; border-radius:50%; object-fit:cover;" onerror="this.src='https://via.placeholder.com/60'">
                     <div style="font-size:12px; margin-top:4px; overflow:hidden; text-overflow:ellipsis;">${displayName}</div>
                  </div>`;
     });
     html += '</div>';
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:flex; align-items:center; justify-content:center;';
-    modal.innerHTML = `<div style="background:white; border-radius:16px; max-width:500px; width:90%; max-height:80vh; overflow:auto; padding:16px;">
-                        <div style="text-align:right;"><button onclick="this.closest('div').parentElement.remove()" style="background:none; border:none; font-size:24px; cursor:pointer;">✕</button></div>
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'member-modal';
+    modalDiv.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:flex; align-items:center; justify-content:center;';
+    modalDiv.innerHTML = `<div style="background:white; border-radius:16px; max-width:500px; width:90%; max-height:80vh; overflow:auto; padding:16px;">
+                        <div style="text-align:right;"><button onclick="this.closest('.member-modal').remove()" style="background:none; border:none; font-size:24px; cursor:pointer;">✕</button></div>
                         ${html}
                        </div>`;
-    document.body.appendChild(modal);
-    modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+    document.body.appendChild(modalDiv);
+    modalDiv.onclick = (e) => { if(e.target === modalDiv) modalDiv.remove(); };
 }
 function goToUserAlbum(userId) {
     showUserPhotos(userId, '', '', '', '');
 }
-async function showAllPhotos() {
-    currentView = 'all';
-    filterBar.style.display = 'flex';
-    currentTagFilter = 'all';
-    currentYear = 'all';
-    currentMonth = 'all';
-    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
-    if(allBtn) allBtn.classList.add('active');
-    const yearSelect = document.getElementById('yearSelect');
-    if(yearSelect) yearSelect.value = 'all';
-    const monthSelect = document.getElementById('monthSelect');
-    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆月</option>';
-    await loadDateOptions();
-    await loadGroupPhotos();
+// ========== 個人相簿 ==========
+function goToMyAlbum() {
+    if (currentUserId) {
+        showUserPhotos(currentUserId, '', '', '', '');
+    } else {
+        alert('請先從 LINE 個人連結登入，才能查看自己的相簿。\n\n上傳照片後，機器人會傳給您專屬連結。');
+    }
 }
 async function showUserPhotos(userId, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
@@ -728,9 +816,8 @@ function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
 userModal.onclick=(e)=>{ if(e.target===userModal) closeUserModal(); };
 
-// 初始化頁面：載入成員頭像 + 群組亂數照片
-loadMemberAvatars();
-showAllPhotos();
+// 啟動頁面：預設顯示時間序首頁
+showTimelinePhotos();
 </script>
 </body>
 </html>
