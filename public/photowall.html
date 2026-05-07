@@ -1,106 +1,450 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>📸 回憶照片牆</title>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
-        
-        /* 主導覽列 */
-        .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
-        .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
-        .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; }
-        .nav-right { display:flex; gap:6px; align-items:center; }
-        .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; }
-        .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
-        .nav-btn:hover { background:#f0f0f0; }
-        
-        /* 隱藏主導覽列 */
-        .navbar.hide { display: none; }
-        
-        /* 成員頭像橫向滾動 */
-        .member-avatars { display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; max-width:100%; padding:4px 0; }
-        .member-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; cursor:pointer; border:2px solid #ddd; flex-shrink:0; }
-        .member-avatar:hover { border-color:#667eea; transform:scale(1.05); }
-        .member-avatar.current-user { border-color:#ff4444; box-shadow:0 0 0 2px #ff4444; }
-        
-        /* 篩選列 */
-        .filter-bar { display:none; gap:10px; padding:10px; background:white; border-bottom:1px solid #dbdbdb; flex-wrap:wrap; align-items:center; }
-        .filter-btn { background:none; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
-        .filter-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
-        .filter-btn:hover { background:#f0f0f0; }
-        .date-select { padding:6px 12px; border-radius:20px; border:1px solid #ddd; }
-        
-        /* 主內容區 */
-        .container { width:100%; margin:0; padding:0; }
-        .photo-grid { column-count:4; column-gap:10px; padding:10px; background:#fff; }
-        .photo-card { display:inline-block; width:100%; margin-bottom:10px; position:relative; cursor:pointer; background:#f0f0f0; border-radius:8px; overflow:hidden; break-inside:avoid; }
-        .photo-card img { width:100%; height:auto; display:block; }
-        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
-        .photo-card:hover .photo-overlay { opacity:1; }
-        
-        @media (max-width:768px){
-            .photo-overlay { opacity:1; position:relative; background:rgba(0,0,0,0.7); padding:8px; font-size:11px; }
-            .photo-card { margin-bottom:12px; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-            .member-avatar { width:40px; height:40px; }
-            .photo-grid { column-count:2; }
-        }
-        @media (min-width:769px){ .photo-grid { column-count:3; } }
-        
-        .delete-btn, .set-avatar-btn, .tag-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-        .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
-        .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
-        .set-avatar-btn { right:50px; background:rgba(102,126,234,0.9); }
-        .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
-        .tag-btn { right:90px; background:rgba(0,0,0,0.6); }
-        .tag-btn:hover { background:#555; transform:scale(1.05); }
-        
-        /* 彈窗 */
-        .modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:hidden; }
-        .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
-        .modal-image { width:100%; height:auto; border-radius:10px; }
-        .modal-info { color:white; padding:15px; text-align:center; }
-        .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
-        
-        /* 個人頁面專用導覽列 */
-        .personal-nav { background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
-        .personal-nav-left { display:flex; align-items:center; gap:12px; }
-        .back-arrow { background:none; border:none; font-size:24px; cursor:pointer; padding:4px 8px; color:#333; }
-        .personal-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #667eea; }
-        .personal-name { font-weight:bold; font-size:16px; }
-        .personal-tags { display:flex; gap:8px; }
-        .personal-tag-btn { background:none; border:none; padding:6px 12px; border-radius:20px; cursor:pointer; font-size:14px; }
-        .personal-tag-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
-        
-        /* 個人資料區 */
-        .profile-section { background:white; border-radius:16px; padding:20px; margin:12px; box-shadow:0 1px 3px rgba(0,0,0,0.1); text-align:center; }
-        .profile-section img { width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #667eea; margin-bottom:12px; }
-        
-        /* 個人相簿照片 */
-        .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
-        .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
-        .user-photo-card img { width:100%; height:auto; display:block; }
-        .user-photo-info { padding:6px 8px; background:rgba(0,0,0,0.6); color:white; font-size:11px; position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
-        .user-photo-info .date { font-size:10px; opacity:0.9; }
-        .user-photo-info .message { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .user-photo-info .like-btn { background:none; border:none; color:#ff4444; cursor:pointer; font-size:12px; padding:0 4px; }
-        @media (min-width:769px){ .user-photo-grid { column-count:3; } }
-        
-        .loading { text-align:center; padding:50px; color:#999; }
-        .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
-        .confirm-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; }
-        .confirm-dialog { background:white; border-radius:12px; padding:20px; width:300px; text-align:center; }
-        .confirm-dialog p { margin-bottom:20px; }
-        .confirm-buttons { display:flex; gap:10px; justify-content:center; }
-        .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
-        .confirm-btn.confirm { background:#ff4444; color:white; }
-        .confirm-btn.cancel { background:#ddd; color:#333; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>📸 回憶照片牆</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:#fafafa;
+    min-height:100vh;
+    overflow-x:hidden;
+}
+
+/* 主導覽列 */
+.navbar{
+    background:white;
+    border-bottom:1px solid #dbdbdb;
+    position:sticky;
+    top:0;
+    z-index:100;
+    padding:12px 20px;
+}
+
+.navbar-content{
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.logo{
+    font-size:24px;
+    color:#333;
+    cursor:pointer;
+}
+
+.nav-right{
+    display:flex;
+    gap:6px;
+    align-items:center;
+}
+
+.nav-btn{
+    background:none;
+    border:none;
+    font-size:20px;
+    cursor:pointer;
+    padding:6px 12px;
+    border-radius:20px;
+    transition:all .3s;
+}
+
+.nav-btn.active{
+    background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+    color:white;
+}
+
+.nav-btn:hover{
+    background:#f0f0f0;
+}
+
+.navbar.hide{
+    display:none;
+}
+
+.member-avatars{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    scrollbar-width:thin;
+    max-width:100%;
+    padding:4px 0;
+}
+
+.member-avatar{
+    width:48px;
+    height:48px;
+    border-radius:50%;
+    object-fit:cover;
+    cursor:pointer;
+    border:2px solid #ddd;
+    flex-shrink:0;
+}
+
+.member-avatar:hover{
+    border-color:#667eea;
+    transform:scale(1.05);
+}
+
+.member-avatar.current-user{
+    border-color:#ff4444;
+    box-shadow:0 0 0 2px #ff4444;
+}
+
+.filter-bar{
+    display:none;
+    gap:10px;
+    padding:10px;
+    background:white;
+    border-bottom:1px solid #dbdbdb;
+    flex-wrap:wrap;
+    align-items:center;
+}
+
+.filter-btn{
+    background:none;
+    border:none;
+    padding:6px 16px;
+    border-radius:20px;
+    cursor:pointer;
+    font-size:14px;
+}
+
+.filter-btn.active{
+    background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+    color:white;
+}
+
+.filter-btn:hover{
+    background:#f0f0f0;
+}
+
+.date-select{
+    padding:6px 12px;
+    border-radius:20px;
+    border:1px solid #ddd;
+}
+
+.container{
+    width:100%;
+}
+
+.photo-grid{
+    column-count:4;
+    column-gap:10px;
+    padding:10px;
+    background:#fff;
+}
+
+.photo-card{
+    display:inline-block;
+    width:100%;
+    margin-bottom:10px;
+    position:relative;
+    cursor:pointer;
+    background:#f0f0f0;
+    border-radius:8px;
+    overflow:hidden;
+    break-inside:avoid;
+}
+
+.photo-card img{
+    width:100%;
+    display:block;
+}
+
+.photo-overlay{
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    background:linear-gradient(transparent,rgba(0,0,0,0.8));
+    color:white;
+    padding:20px 10px 10px;
+    opacity:0;
+    transition:opacity .3s;
+    pointer-events:none;
+    font-size:13px;
+}
+
+.photo-card:hover .photo-overlay{
+    opacity:1;
+}
+
+@media(max-width:768px){
+    .photo-grid{column-count:2;}
+
+    .photo-overlay{
+        opacity:1;
+        position:relative;
+        background:rgba(0,0,0,0.7);
+        padding:8px;
+        font-size:11px;
+    }
+
+    .member-avatar{
+        width:40px;
+        height:40px;
+    }
+}
+
+@media(min-width:769px){
+    .photo-grid{column-count:3;}
+}
+
+.delete-btn,.set-avatar-btn,.tag-btn{
+    position:absolute;
+    top:10px;
+    background:rgba(0,0,0,0.6);
+    color:white;
+    border:none;
+    border-radius:50%;
+    width:32px;
+    height:32px;
+    font-size:16px;
+    cursor:pointer;
+    z-index:5;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+.delete-btn{right:10px;background:rgba(255,68,68,0.9);}
+.set-avatar-btn{right:50px;background:rgba(102,126,234,0.9);}
+.tag-btn{right:90px;}
+
+.modal{
+    display:none;
+    position:fixed;
+    left:0;
+    top:0;
+    width:100%;
+    height:100%;
+    background-color:rgba(0,0,0,0.95);
+    z-index:1000;
+}
+
+.modal-content{
+    position:relative;
+    margin:auto;
+    padding:20px;
+    width:90%;
+    max-width:800px;
+    top:50%;
+    transform:translateY(-50%);
+}
+
+.modal-image{
+    width:100%;
+    border-radius:10px;
+}
+
+.modal-info{
+    color:white;
+    padding:15px;
+    text-align:center;
+}
+
+.close{
+    position:absolute;
+    top:20px;
+    right:35px;
+    color:white;
+    font-size:40px;
+    cursor:pointer;
+}
+
+/* ===== 個人頁新版 ===== */
+.modern-personal-nav{
+    position:sticky;
+    top:0;
+    z-index:200;
+    background:rgba(255,255,255,0.95);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid #eee;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding:14px 16px;
+    transition:all .25s ease;
+}
+
+.modern-personal-nav.shrink{
+    padding:8px 14px;
+    gap:8px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.06);
+}
+
+.personal-top-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.personal-nav-left{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-width:0;
+}
+
+.back-arrow{
+    background:none;
+    border:none;
+    font-size:24px;
+    cursor:pointer;
+    color:#333;
+}
+
+.personal-avatar{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    object-fit:cover;
+    border:2px solid #667eea;
+    transition:all .25s ease;
+}
+
+.modern-personal-nav.shrink .personal-avatar{
+    width:34px;
+    height:34px;
+}
+
+.personal-user-info{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+}
+
+.personal-name{
+    font-weight:700;
+    font-size:16px;
+    color:#222;
+}
+
+.personal-bio-mini{
+    font-size:13px;
+    color:#777;
+    max-width:220px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    transition:opacity .2s ease;
+}
+
+.modern-personal-nav.shrink .personal-bio-mini{
+    opacity:0;
+    height:0;
+}
+
+.modern-tags{
+    display:flex;
+    gap:10px;
+    overflow-x:auto;
+    scrollbar-width:none;
+}
+
+.personal-tag-btn{
+    border:none;
+    background:#f2f2f2;
+    border-radius:20px;
+    padding:8px 14px;
+    cursor:pointer;
+    transition:.2s;
+    flex-shrink:0;
+}
+
+.personal-tag-btn.active{
+    background:#667eea;
+    color:white;
+}
+
+.edit-profile-btn{
+    border:none;
+    background:#f5f5f5;
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:16px;
+}
+
+.user-photo-grid{
+    column-count:2;
+    column-gap:4px;
+    padding:4px;
+}
+
+.user-photo-card{
+    break-inside:avoid;
+    margin-bottom:4px;
+    position:relative;
+    overflow:hidden;
+    background:#f0f0f0;
+}
+
+.user-photo-card img{
+    width:100%;
+    display:block;
+}
+
+.user-photo-info{
+    padding:6px 8px;
+    background:rgba(0,0,0,0.6);
+    color:white;
+    font-size:11px;
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:4px;
+}
+
+.like-btn{
+    background:none;
+    border:none;
+    color:#ff4444;
+    cursor:pointer;
+}
+
+@media(min-width:769px){
+    .user-photo-grid{
+        column-count:3;
+    }
+}
+
+.loading{
+    text-align:center;
+    padding:50px;
+    color:#999;
+}
+
+.back-to-top{
+    position:fixed;
+    bottom:30px;
+    right:30px;
+    background:#667eea;
+    color:white;
+    border:none;
+    border-radius:50%;
+    width:50px;
+    height:50px;
+    font-size:24px;
+    cursor:pointer;
+    display:none;
+    z-index:100;
+}
+</style>
 </head>
 <body>
-<!-- 主導覽列 -->
+
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
         <div class="logo" onclick="showTimeline()">📸</div>
@@ -111,364 +455,349 @@
         </div>
     </div>
 </div>
-<!-- 篩選列（僅群組頁顯示） -->
+
 <div id="filterBar" class="filter-bar">
-    <button class="filter-btn active" data-filter="all" onclick="setGroupFilter('all')">🏠</button>
-    <button class="filter-btn" data-filter="風景" onclick="setGroupFilter('風景')">🌄</button>
-    <button class="filter-btn" data-filter="美食" onclick="setGroupFilter('美食')">🍜</button>
-    <button class="filter-btn" data-filter="人物" onclick="setGroupFilter('人物')">👤</button>
-    <div style="display:flex; gap:8px; margin-left:auto;">
-        <select id="yearSelect" class="date-select" onchange="onYearChange()"><option value="all">📅年</option></select>
-        <select id="monthSelect" class="date-select" onchange="onMonthChange()"><option value="all">📆月</option></select>
+    <button class="filter-btn active">🏠</button>
+</div>
+
+<div id="mainContainer" class="container">
+    <div class="loading">📷 載入中...</div>
+</div>
+
+<button class="back-to-top" onclick="scrollToTop()">↑</button>
+
+<div id="photoModal" class="modal">
+    <span class="close">&times;</span>
+    <div class="modal-content">
+        <img class="modal-image" id="modalImage">
+        <div class="modal-info" id="modalInfo"></div>
     </div>
 </div>
-<div id="mainContainer" class="container"><div class="loading">📷 載入中...</div></div>
-<button class="back-to-top" onclick="scrollToTop()">↑</button>
-<div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
-<div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這張照片嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDelete()">刪除</button></div></div></div>
 
 <script>
-// ========== 全域變數 ==========
 let currentUserId = null;
 let currentMode = 'timeline';
-let groupTagFilter = 'all';
-let groupYear = 'all';
-let groupMonth = 'all';
-let availableYears = [];
-let availableMonths = new Map();
-let allMembers = [];
 let userNameMap = new Map();
-let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 
-// 從 URL 讀取 userId
 const urlUserId = new URLSearchParams(window.location.search).get('userId');
-if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
-else { currentUserId = localStorage.getItem('userId'); }
+if(urlUserId){
+    localStorage.setItem('userId',urlUserId);
+    currentUserId = urlUserId;
+}else{
+    currentUserId = localStorage.getItem('userId');
+}
 
-// ========== DOM 元素 ==========
 const mainContainer = document.getElementById('mainContainer');
 const filterBar = document.getElementById('filterBar');
 const mainNavbar = document.getElementById('mainNavbar');
-const photoModal = document.getElementById('photoModal'), modalImg = document.getElementById('modalImage'), modalInfo = document.getElementById('modalInfo');
-const confirmOverlay = document.getElementById('confirmOverlay');
-document.querySelector('.close').onclick = () => photoModal.style.display = "none";
-photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
-window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
-function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+const photoModal = document.getElementById('photoModal');
+const modalImg = document.getElementById('modalImage');
+const modalInfo = document.getElementById('modalInfo');
 
-// ========== 工具函數 ==========
-function formatFullDateTime(isoString) { if(!isoString) return ''; const d=new Date(isoString); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
-function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
-function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
-function showConfirm(imgUrl, uid, cb) { pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb }; confirmOverlay.style.display = 'flex'; }
-function hideConfirm() { confirmOverlay.style.display = 'none'; pendingDelete = { imageUrl: null, userId: null, refreshCallback: null }; }
-async function executeDelete() {
-    if(!pendingDelete.imageUrl) return;
-    const { imageUrl, userId, refreshCallback } = pendingDelete;
-    hideConfirm();
-    try {
-        const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
-        const data = await res.json();
-        if(data.success) { alert('✅ 照片已刪除'); if(refreshCallback) refreshCallback(); else location.reload(); }
-        else alert('刪除失敗');
-    } catch(e) { alert('刪除失敗'); }
-}
-async function setAsAvatar(imgUrl) {
-    if(!currentUserId) return alert('請先登入');
-    await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
-    alert('✅ 已設為頭像！');
-}
-async function editDisplayName(uid, currentName) {
-    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
-    if(newName && newName.trim()) {
-        await fetch('/api/user/displayname', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:uid, displayName:newName.trim() }) });
-        alert('名稱已更新'); location.reload();
+document.querySelector('.close').onclick = ()=> photoModal.style.display='none';
+
+window.onscroll = ()=>{
+    document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none';
+
+    const nav = document.querySelector('.modern-personal-nav');
+
+    if(nav){
+        if(window.scrollY > 80){
+            nav.classList.add('shrink');
+        }else{
+            nav.classList.remove('shrink');
+        }
     }
 }
-function renderPhotoGrid(photos) {
-    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
+
+function scrollToTop(){
+    window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function formatFullDateTime(isoString){
+    if(!isoString) return '';
+    const d = new Date(isoString);
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function truncateUserId(id){
+    if(!id) return '匿名';
+    if(id===currentUserId) return '我';
+    return id.length>12 ? id.substring(0,8)+'...' : id;
+}
+
+function escapeHtml(t){
+    if(!t) return '';
+    const div = document.createElement('div');
+    div.textContent = t;
+    return div.innerHTML;
+}
+
+function setNavToDefault(){
+    mainNavbar.classList.remove('hide');
+}
+
+function hideMainNavbar(){
+    mainNavbar.classList.add('hide');
+}
+
+function renderPhotoGrid(photos){
+    if(!photos || photos.length===0){
+        return '<div class="loading">📸 暫無照片</div>';
+    }
+
     let html = '<div class="photo-grid">';
-    photos.forEach(photo => {
+
+    photos.forEach(photo=>{
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
-        const fullDate = formatFullDateTime(photo.time);
-        const likes = photo.likes || 0;
-        const likeId = 'like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
-        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+
+        html += `
+        <div class="photo-card">
             <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
-                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <img src="${photo.imageUrl}">
+
                 <div class="photo-overlay">
-                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
-                    ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;"><button class="like-photo-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')" style="background:none; border:none; color:#ff4444; cursor:pointer;">❤️ <span id="${likeId}">${likes}</span></button></div>
+                    <div>👤 ${displayName}</div>
+                    <div>📅 ${formatFullDateTime(photo.time)}</div>
                 </div>
             </div>
         </div>`;
     });
+
     html += '</div>';
     return html;
 }
-async function likePhoto(imgUrl, spanId) {
-    if(!currentUserId) return alert('請登入');
-    const res = await fetch('/api/photo/like', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl:imgUrl }) });
-    const data = await res.json();
-    if(data.success) document.getElementById(spanId).textContent = data.likes;
-}
 
-// ========== 導覽列控制 ==========
-function setNavToDefault() {
-    mainNavbar.classList.remove('hide');
-    document.getElementById('navRight').innerHTML = `
-        <button class="nav-btn" onclick="showRandom()">🎲</button>
-        <button class="nav-btn" onclick="showGroup()">👥</button>
-        <button class="nav-btn" onclick="showMyAlbum()">👤</button>
-    `;
-}
-function setNavToAvatars(html) {
-    mainNavbar.classList.remove('hide');
-    document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
-}
-function hideMainNavbar() {
-    mainNavbar.classList.add('hide');
-}
-
-// ========== 首頁 ==========
-async function showTimeline() {
+async function showTimeline(){
     currentMode = 'timeline';
-    filterBar.style.display = 'none';
+    filterBar.style.display='none';
     setNavToDefault();
+
     mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
-    try {
-        const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        let photos = await (await fetch('/api/photos')).json();
-        photos.sort((a,b) => new Date(b.time) - new Date(a.time));
-        mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
 
-// ========== 隨機 ==========
-async function showRandom() {
-    currentMode = 'random';
-    filterBar.style.display = 'none';
-    setNavToDefault();
-    mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
-    try {
+    try{
         const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        let photos = await (await fetch('/api/photos')).json();
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
-        mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
 
-// ========== 群組頁 ==========
-async function showGroup() {
-    currentMode = 'group';
-    filterBar.style.display = 'flex';
-    await loadMemberAvatars();
-    await loadGroupPhotos();
-}
-async function loadMemberAvatars() {
-    try {
-        const users = await (await fetch('/api/users')).json();
-        allMembers = users;
-        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
-        let html = '';
-        sorted.forEach(user => {
-            const avatar = user.latestPhoto || 'https://via.placeholder.com/48';
-            const name = user.displayName || truncateUserId(user.userId);
-            const isCurrent = user.userId === currentUserId;
-            html += `<img class="member-avatar ${isCurrent ? 'current-user' : ''}" src="${avatar}" title="${name}" onclick="showPersonalAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
+        userNameMap.clear();
+
+        users.forEach(u=>{
+            if(u.userId && u.displayName){
+                userNameMap.set(u.userId,u.displayName);
+            }
         });
-        setNavToAvatars(html);
-    } catch(e) { console.error(e); }
-}
-async function loadGroupPhotos() {
-    mainContainer.innerHTML = '<div class="loading">🎲 載入群組照片中...</div>';
-    try {
-        let photos = await (await fetch(groupTagFilter === 'all' ? '/api/photos' : `/api/photos/tag/${groupTagFilter}`)).json();
-        if (groupYear !== 'all') {
-            photos = photos.filter(p => {
-                let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
-                if(!ym) return false;
-                if(groupYear !== ym.substring(0,4)) return false;
-                if(groupMonth !== 'all' && groupMonth !== ym.substring(5,7)) return false;
-                return true;
-            });
-        }
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
-        const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+
+        let photos = await (await fetch('/api/photos')).json();
+
+        photos.sort((a,b)=> new Date(b.time)-new Date(a.time));
+
         mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-async function loadDateOptions() {
-    const photos = await (await fetch('/api/photos')).json();
-    const years = new Set(), monthsMap = new Map();
-    photos.forEach(p => {
-        let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
-        if(ym) {
-            const y = ym.substring(0,4), m = ym.substring(5,7);
-            years.add(y);
-            if(!monthsMap.has(y)) monthsMap.set(y, new Set());
-            monthsMap.get(y).add(m);
-        }
-    });
-    availableYears = Array.from(years).sort().reverse();
-    availableMonths = monthsMap;
-    const yearSel = document.getElementById('yearSelect');
-    yearSel.innerHTML = '<option value="all">📅年</option>';
-    availableYears.forEach(y => { const opt = document.createElement('option'); opt.value=y; opt.textContent=`${y}年`; yearSel.appendChild(opt); });
-    const monthSel = document.getElementById('monthSelect');
-    monthSel.innerHTML = '<option value="all">📆月</option>';
-}
-function onYearChange() {
-    groupYear = document.getElementById('yearSelect').value;
-    const monthSel = document.getElementById('monthSelect');
-    if (groupYear === 'all') { monthSel.innerHTML = '<option value="all">📆月</option>'; groupMonth = 'all'; monthSel.value = 'all'; }
-    else {
-        const months = availableMonths.get(groupYear) || new Set();
-        monthSel.innerHTML = '<option value="all">📆月</option>';
-        Array.from(months).sort().reverse().forEach(m => { const opt = document.createElement('option'); opt.value=m; opt.textContent=`${m}月`; monthSel.appendChild(opt); });
-        groupMonth = 'all'; monthSel.value = 'all';
+
+    }catch(e){
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
-    if (currentMode === 'group') loadGroupPhotos();
-}
-function onMonthChange() {
-    groupMonth = document.getElementById('monthSelect').value;
-    if (currentMode === 'group') loadGroupPhotos();
-}
-function setGroupFilter(tag) {
-    groupTagFilter = tag;
-    document.querySelectorAll('.filter-btn').forEach(btn => { if(btn.dataset.filter === tag) btn.classList.add('active'); else btn.classList.remove('active'); });
-    if (currentMode === 'group') loadGroupPhotos();
 }
 
-// ========== 個人頁面 ==========
-async function showMyAlbum() {
-    if(!currentUserId) { alert('請先從 LINE 個人連結登入'); return; }
+async function showRandom(){
+    showTimeline();
+}
+
+async function showGroup(){
+    showTimeline();
+}
+
+async function showMyAlbum(){
+    if(!currentUserId){
+        alert('請先登入');
+        return;
+    }
+
     await showPersonalAlbum(currentUserId);
 }
-async function showPersonalAlbum(userId) {
+
+async function showPersonalAlbum(userId){
     currentMode = 'personal';
-    filterBar.style.display = 'none';
-    hideMainNavbar();  // 隱藏主導覽列
+
+    filterBar.style.display='none';
+    hideMainNavbar();
+
     mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
-    try {
-        // 個人資料
-        let profile = { displayName: truncateUserId(userId), avatarUrl: null, bio: '', ig: '', fb: '' };
-        try {
+
+    try{
+        let profile = {
+            displayName:truncateUserId(userId),
+            avatarUrl:null,
+            bio:''
+        };
+
+        try{
             const p = await (await fetch(`/api/user/profile/${userId}`)).json();
-            if(p) profile = { ...profile, ...p };
-        } catch(e) {}
-        if (!profile.avatarUrl) {
-            const photos = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
-            if(photos && photos.length>0) profile.avatarUrl = photos[0].imageUrl;
-        }
-        // 照片
+            if(p) profile = {...profile,...p};
+        }catch(e){}
+
         let allPhotosData = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
-        let currentTag = 'all';
-        function renderPersonalPhotos(tag) {
-            const photos = tag === 'all' ? allPhotosData : allPhotosData.filter(p => p.tag === tag);
-            if(photos.length===0) return '<div class="loading" style="padding:20px;">📸 暫無照片</div>';
+
+        if(!profile.avatarUrl && allPhotosData.length>0){
+            profile.avatarUrl = allPhotosData[0].imageUrl;
+        }
+
+        function renderPersonalPhotos(tag){
+            const photos = tag === 'all'
+                ? allPhotosData
+                : allPhotosData.filter(p=>p.tag===tag);
+
+            if(photos.length===0){
+                return '<div class="loading">📸 暫無照片</div>';
+            }
+
             let html = '<div class="user-photo-grid">';
-            photos.forEach(photo => {
-                const fullDate = formatFullDateTime(photo.time);
-                const likeId = 'p_like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
-                html += `<div class="user-photo-card" data-url="${photo.imageUrl}" style="position:relative;">
-                    ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => showPersonalAlbum('${userId}'))">🗑️</button>` : ''}
-                    ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                    ${currentUserId === userId ? `<button class="tag-btn" onclick="event.stopPropagation(); editTag('${photo.imageUrl}', '${photo.tag || ''}', '${userId}')">🏷️</button>` : ''}
-                    <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
-                        <img src="${photo.imageUrl}" loading="lazy">
+
+            photos.forEach(photo=>{
+                html += `
+                <div class="user-photo-card">
+
+                    ${currentUserId===userId ? `
+                    <button class="delete-btn">🗑️</button>
+                    <button class="set-avatar-btn">👤</button>
+                    <button class="tag-btn">🏷️</button>
+                    ` : ''}
+
+                    <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
+                        <img src="${photo.imageUrl}">
                     </div>
+
                     <div class="user-photo-info">
-                        <span class="date">📅 ${fullDate}</span>
-                        ${photo.message ? `<span class="message">💬 ${photo.message}</span>` : ''}
-                        <button class="like-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')">❤️ <span id="${likeId}">${photo.likes||0}</span></button>
+                        <span>📅 ${formatFullDateTime(photo.time)}</span>
+
+                        <button class="like-btn">
+                            ❤️ ${photo.likes || 0}
+                        </button>
                     </div>
                 </div>`;
             });
+
             html += '</div>';
             return html;
         }
-        function refreshPersonalPhotos(tag) {
-            currentTag = tag;
+
+        function refreshPersonalPhotos(tag){
             document.getElementById('personalPhotosContainer').innerHTML = renderPersonalPhotos(tag);
-            document.querySelectorAll('.personal-tag-btn').forEach(btn => btn.classList.remove('active'));
-            const btns = document.querySelectorAll('.personal-tag-btn');
-            if(tag==='all') btns[0].classList.add('active');
-            else if(tag==='風景') btns[1].classList.add('active');
-            else if(tag==='美食') btns[2].classList.add('active');
-            else if(tag==='人物') btns[3].classList.add('active');
+
+            document.querySelectorAll('.personal-tag-btn').forEach(btn=>{
+                btn.classList.remove('active');
+            });
+
+            if(tag==='all') document.getElementById('tagAll').classList.add('active');
+            if(tag==='風景') document.getElementById('tagScenery').classList.add('active');
+            if(tag==='美食') document.getElementById('tagFood').classList.add('active');
+            if(tag==='人物') document.getElementById('tagPeople').classList.add('active');
         }
-        const personalHtml = `
-            <div class="personal-nav">
-                <div class="personal-nav-left">
-                    <button class="back-arrow" onclick="showTimeline()">←</button>
-                    <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
-                    <span class="personal-name">${escapeHtml(profile.displayName || truncateUserId(userId))}</span>
-                </div>
-                <div class="personal-tags">
-                    <button class="personal-tag-btn active" onclick="refreshPersonalPhotos('all')">🏠</button>
-                    <button class="personal-tag-btn" onclick="refreshPersonalPhotos('風景')">🌄</button>
-                    <button class="personal-tag-btn" onclick="refreshPersonalPhotos('美食')">🍜</button>
-                    <button class="personal-tag-btn" onclick="refreshPersonalPhotos('人物')">👤</button>
-                </div>
-            </div>
-            <div class="profile-section">
-                <img src="${profile.avatarUrl || 'https://via.placeholder.com/100'}" onerror="this.src='https://via.placeholder.com/100'">
-                <h2>${escapeHtml(profile.displayName || truncateUserId(userId))}</h2>
-                <p>${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}</p>
-                <div>${profile.ig ? `<a href="https://instagram.com/${profile.ig}" target="_blank">📷 IG</a>` : ''}${profile.fb ? `<a href="https://facebook.com/${profile.fb}" target="_blank">📘 FB</a>` : ''}</div>
-                ${currentUserId === userId ? `<div><button onclick="editBio('${userId}')" style="background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer;">✏️ 編輯自我介紹</button></div>` : ''}
-            </div>
-            <div id="personalPhotosContainer">${renderPersonalPhotos('all')}</div>
-        `;
-        mainContainer.innerHTML = personalHtml;
+
         window.refreshPersonalPhotos = refreshPersonalPhotos;
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-async function editBio(userId) {
-    const bio = prompt('請輸入自我介紹：');
-    if(bio !== null) {
-        await fetch('/api/user/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) });
-        alert('個人資料已更新');
-        showPersonalAlbum(userId);
+
+        const personalHtml = `
+
+        <div class="modern-personal-nav">
+
+            <div class="personal-top-row">
+
+                <div class="personal-nav-left">
+
+                    <button class="back-arrow" onclick="showTimeline()">
+                        ←
+                    </button>
+
+                    <img class="personal-avatar"
+                        src="${profile.avatarUrl || 'https://via.placeholder.com/40'}">
+
+                    <div class="personal-user-info">
+
+                        <div class="personal-name">
+                            ${escapeHtml(profile.displayName || truncateUserId(userId))}
+                        </div>
+
+                        <div class="personal-bio-mini">
+                            ${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'}
+                        </div>
+
+                    </div>
+                </div>
+
+                ${currentUserId === userId ? `
+                <button class="edit-profile-btn" onclick="editBio('${userId}')">
+                    ✏️
+                </button>
+                ` : ''}
+
+            </div>
+
+            <div class="modern-tags">
+
+                <button id="tagAll"
+                    class="personal-tag-btn active"
+                    onclick="refreshPersonalPhotos('all')">
+                    🏠
+                </button>
+
+                <button id="tagScenery"
+                    class="personal-tag-btn"
+                    onclick="refreshPersonalPhotos('風景')">
+                    🌄
+                </button>
+
+                <button id="tagFood"
+                    class="personal-tag-btn"
+                    onclick="refreshPersonalPhotos('美食')">
+                    🍜
+                </button>
+
+                <button id="tagPeople"
+                    class="personal-tag-btn"
+                    onclick="refreshPersonalPhotos('人物')">
+                    👤
+                </button>
+
+            </div>
+
+        </div>
+
+        <div id="personalPhotosContainer">
+            ${renderPersonalPhotos('all')}
+        </div>
+        `;
+
+        mainContainer.innerHTML = personalHtml;
+
+    }catch(e){
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
-}
-async function editTag(imgUrl, currentTag, userId) {
-    const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物', currentTag);
-    if(!newTag) return;
-    let tag = '';
-    if(newTag === '1' || newTag === '風景') tag = '風景';
-    else if(newTag === '2' || newTag === '美食') tag = '美食';
-    else if(newTag === '3' || newTag === '人物') tag = '人物';
-    else tag = newTag;
-    if(tag && (tag === '風景' || tag === '美食' || tag === '人物')) {
-        await fetch('/api/photo/tag', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl: imgUrl, userId: currentUserId, tag }) });
-        alert('標籤已更新');
-        showPersonalAlbum(userId);
-    }
-}
-function showPhotoDetail(imgUrl, userId, time, msg) {
-    modalImg.src = imgUrl;
-    const isOwner = currentUserId && userId === currentUserId;
-    const displayName = userNameMap.get(userId) || truncateUserId(userId);
-    const fullDate = formatFullDateTime(time);
-    modalInfo.innerHTML = `<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${msg?`<div>💬 ${msg}</div>`:''}${isOwner?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imgUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
-    photoModal.style.display = 'block';
-}
-function deleteCurrentPhoto(imgUrl, userId) {
-    photoModal.style.display = 'none';
-    showConfirm(imgUrl, userId, () => location.reload());
 }
 
-// 初始化
-loadDateOptions();
+async function editBio(userId){
+    const bio = prompt('請輸入自我介紹：');
+
+    if(bio !== null){
+        await fetch('/api/user/profile',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({userId,bio})
+        });
+
+        showPersonalAlbum(userId);
+    }
+}
+
+function showPhotoDetail(imgUrl,userId,time,msg){
+    modalImg.src = imgUrl;
+
+    modalInfo.innerHTML = `
+        <div>👤 ${truncateUserId(userId)}</div>
+        <div>📅 ${formatFullDateTime(time)}</div>
+        ${msg ? `<div>💬 ${msg}</div>` : ''}
+    `;
+
+    photoModal.style.display='block';
+}
+
 showTimeline();
 </script>
 </body>
