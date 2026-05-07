@@ -15,6 +15,7 @@
         .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; }
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         .nav-btn:hover { background:#f0f0f0; }
+        .nav-btn.disabled { opacity:0.5; cursor:not-allowed; pointer-events:none; }
         
         .filter-bar {
             display: none;
@@ -50,7 +51,6 @@
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
         .photo-card:hover .photo-overlay { opacity:1; }
         
-        /* 手機版：直接顯示照片資訊 */
         @media (max-width: 768px) {
             .photo-overlay {
                 opacity: 1;
@@ -444,7 +444,6 @@ async function showAllPhotos() {
         container.innerHTML = renderPhotoGrid(allPhotos);
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
 }
-// 隨機探索
 async function showRandomPhotos() {
     currentView = 'random';
     const container = document.getElementById('mainContainer');
@@ -461,7 +460,6 @@ async function showRandomPhotos() {
         container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
-// 前往我的相簿
 function goToMyAlbum() {
     if (currentUserId) {
         showUserPhotos(currentUserId, '', '', '', '');
@@ -692,15 +690,23 @@ function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
 }
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
 userModal.onclick=(e)=>{ if(e.target===userModal) closeUserModal(); };
-const allBtn=document.querySelector('.nav-buttons button:first-child'), usersBtn=document.querySelector('.nav-buttons button:last-child');
-const newAllBtn=allBtn.cloneNode(true), newUsersBtn=usersBtn.cloneNode(true);
-allBtn.parentNode.replaceChild(newAllBtn,allBtn);
-usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
-newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
-newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
-// 控制我的相簿按鈕顯示（僅登入後顯示）
+const allBtn = document.querySelector('.nav-buttons button:first-child');
+const usersBtn = document.querySelector('.nav-buttons button:last-child');
+const newAllBtn = allBtn.cloneNode(true);
+const newUsersBtn = usersBtn.cloneNode(true);
+allBtn.parentNode.replaceChild(newAllBtn, allBtn);
+usersBtn.parentNode.replaceChild(newUsersBtn, usersBtn);
+newAllBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
+newUsersBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showUsers(); };
+
+// 控制我的相簿按鈕顯示（僅登入後可點擊）
+const myAlbumBtn = document.getElementById('myAlbumBtn');
 if (currentUserId) {
-    document.getElementById('myAlbumBtn').style.display = 'inline-block';
+    myAlbumBtn.style.display = 'inline-block';
+    myAlbumBtn.classList.remove('disabled');
+} else {
+    myAlbumBtn.style.display = 'inline-block';
+    myAlbumBtn.classList.add('disabled');
 }
 showAllPhotos();
 </script>
