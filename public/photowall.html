@@ -62,10 +62,11 @@
         
         .personal-nav { background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; position:sticky; top:0; z-index:100; }
         .personal-nav-row1 { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-        .personal-nav-left { display:flex; align-items:center; gap:12px; }
+        .personal-nav-left { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
         .back-arrow { background:none; border:none; font-size:24px; cursor:pointer; padding:4px 8px; color:#333; }
         .personal-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #667eea; }
         .personal-name { font-weight:bold; font-size:16px; }
+        .edit-name-btn { background:none; border:none; color:#667eea; cursor:pointer; font-size:14px; margin-left:6px; }
         .personal-action-btn { background:#667eea; color:white; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
         .personal-bio { font-size:13px; color:#666; margin-bottom:8px; padding-left:52px; }
         .personal-tags { display:flex; gap:8px; padding-left:52px; }
@@ -139,13 +140,12 @@
 
 <script>
 // ========== 功能開關 ==========
-// 將以下任一項目設為 false 即可關閉對應功能，視覺上會隱藏相關按鈕或區塊，但整體版面不受影響
 const FEATURES = {
-    ENABLE_LIKE_BUTTON: false,          // 照片可按讚（false時只顯示❤️數字， true無按鈕互動）
+    ENABLE_LIKE_BUTTON: false,          // 照片可按讚（false時只顯示❤️數字）
     ENABLE_PHOTO_COMMENT_BUTTON: false, // 照片下方的💬留言按鈕
-    ENABLE_MESSAGE_BOARD: false,        // 個人頁的留言板（包含「💬 留言」按鈕及留言區）
-    ENABLE_FILTER_BAR: false,// 群組頁的篩選列（🏠🌄🍜👤 + 年月）
-    ENABLE_PERSONAL_TAGS: false         // 個人頁的標籤篩選（🏠🌄🍜👤）
+    ENABLE_MESSAGE_BOARD: false,        // 個人頁的留言板
+    ENABLE_FILTER_BAR: false,           // 群組頁的篩選列
+    ENABLE_PERSONAL_TAGS: false         // 個人頁的標籤篩選
 };
 
 // ========== 全域變數 ==========
@@ -215,6 +215,27 @@ async function setAsAvatar(imgUrl) {
     if(!currentUserId) return alert('請先登入');
     await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
     alert('✅ 已設為頭像！');
+}
+async function editDisplayName(userId, currentName) {
+    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
+    if(newName && newName.trim()) {
+        try {
+            const res = await fetch('/api/user/displayname', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, displayName: newName.trim() }) 
+            });
+            const data = await res.json();
+            if(data.success) { 
+                alert('✅ 名稱已更新'); 
+                showPersonalAlbum(userId);
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) { 
+            alert('錯誤');
+        }
+    }
 }
 function renderPhotoGrid(photos) {
     if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
@@ -614,10 +635,11 @@ function renderPersonalPage(profile, userId) {
                     <button class="back-arrow" onclick="showTimeline()">←</button>
                     <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
                     <span class="personal-name">${titleName}</span>
+                    ${isOwner ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}', '${titleName}')">✏️</button>` : ''}
                 </div>
                 ${FEATURES.ENABLE_MESSAGE_BOARD ? `<button id="personalActionBtn" class="personal-action-btn" onclick="switchToMessages()">💬 留言</button>` : ''}
             </div>
-            <div class="personal-bio">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'} ${isOwner ? `<button onclick="editBio()" style="background:none; border:none; color:#667eea; cursor:pointer; font-size:12px;">✏️</button>` : ''}</div>
+            <div class="personal-bio">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'} ${isOwner ? `<button onclick="editBio()" style="background:none; border:none; color:#667eea; cursor:pointer; font-size:12px; margin-left:6px;">✏️</button>` : ''}</div>
             ${FEATURES.ENABLE_PERSONAL_TAGS ? `
             <div class="personal-tags">
                 <button class="personal-tag-btn active" onclick="refreshPersonalPhotos('all')">🏠</button>
