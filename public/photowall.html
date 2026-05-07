@@ -191,12 +191,23 @@
 <script>
 let allPhotos = [], currentView = 'all', pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
 let userNameMap = new Map();
-let currentUserId = localStorage.getItem('userId');
+let currentUserId = null;
 let currentTagFilter = 'all';
 let currentYear = 'all';
 let currentMonth = 'all';
 let availableYears = [];
 let availableMonths = new Map();
+
+// 從 URL 讀取 userId 參數（LINE 個人連結會帶）
+const urlParams = new URLSearchParams(window.location.search);
+const userIdFromUrl = urlParams.get('userId');
+
+if (userIdFromUrl) {
+    localStorage.setItem('userId', userIdFromUrl);
+    currentUserId = userIdFromUrl;
+} else {
+    currentUserId = localStorage.getItem('userId');
+}
 
 if(!currentUserId) console.log('⚠️ 未登入，只能瀏覽');
 
@@ -411,14 +422,16 @@ async function applyDateFilter() {
     } catch(e) { container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
 }
 async function showUsers() {
-    currentView='users';
+    currentView = 'users';
     filterBar.style.display = 'flex';
     currentTagFilter = 'all';
     currentYear = 'all';
     currentMonth = 'all';
-    document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
-    document.querySelector('.nav-buttons button:last-child').classList.add('active');
-    document.querySelectorAll('.filter-btn').forEach(btn=>btn.classList.remove('active'));
+    
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.nav-buttons .nav-btn')[1].classList.add('active');
+    
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
     const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
     if(allBtn) allBtn.classList.add('active');
     const yearSelect = document.getElementById('yearSelect');
@@ -429,11 +442,13 @@ async function showUsers() {
     await applyDateFilter();
 }
 async function showAllPhotos() {
-    currentView='all';
+    currentView = 'all';
     filterBar.style.display = 'none';
-    document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
-    const container=document.getElementById('mainContainer');
-    container.innerHTML='<div class="loading">📷 載入照片中...</div>';
+    
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">📷 載入照片中...</div>';
     try {
         const usersRes = await fetch('/api/users');
         const users = await usersRes.json();
@@ -442,10 +457,15 @@ async function showAllPhotos() {
         const res = await fetch('/api/photos');
         allPhotos = await res.json();
         container.innerHTML = renderPhotoGrid(allPhotos);
-    } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
+    } catch(e) { container.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
 }
 async function showRandomPhotos() {
     currentView = 'random';
+    filterBar.style.display = 'none';
+    
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.nav-buttons .nav-btn')[0].classList.add('active');
+    
     const container = document.getElementById('mainContainer');
     container.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
     try {
@@ -462,6 +482,8 @@ async function showRandomPhotos() {
 }
 function goToMyAlbum() {
     if (currentUserId) {
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('myAlbumBtn').classList.add('active');
         showUserPhotos(currentUserId, '', '', '', '');
     } else {
         alert('請先從 LINE 個人連結登入，才能查看自己的相簿。\n\n上傳照片後，機器人會傳給您專屬連結。');
@@ -690,6 +712,8 @@ function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
 }
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
 userModal.onclick=(e)=>{ if(e.target===userModal) closeUserModal(); };
+
+// 導覽列按鈕綁定
 const allBtn = document.querySelector('.nav-buttons button:first-child');
 const usersBtn = document.querySelector('.nav-buttons button:last-child');
 const newAllBtn = allBtn.cloneNode(true);
@@ -699,15 +723,6 @@ usersBtn.parentNode.replaceChild(newUsersBtn, usersBtn);
 newAllBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
 newUsersBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showUsers(); };
 
-// 控制我的相簿按鈕顯示（僅登入後可點擊）
-const myAlbumBtn = document.getElementById('myAlbumBtn');
-if (currentUserId) {
-    myAlbumBtn.style.display = 'inline-block';
-    myAlbumBtn.classList.remove('disabled');
-} else {
-    myAlbumBtn.style.display = 'inline-block';
-    myAlbumBtn.classList.add('disabled');
-}
 showAllPhotos();
 </script>
 </body>
