@@ -32,12 +32,12 @@
             display: none;  /* Chrome/Safari 隱藏滾動條 */
         }
         .member-avatar {
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             object-fit: cover;
             cursor: pointer;
-            border: 2px solid #ddd;
+            border: 1px solid #ddd;
             flex-shrink: 0;
         }
         .member-avatar:hover {
@@ -168,11 +168,11 @@
 <script>
 // ========== 功能開關 ==========
 const FEATURES = {
-    ENABLE_LIKE_BUTTON: true,          // 照片可按讚（false時只顯示❤️數字）
-    ENABLE_PHOTO_COMMENT_BUTTON: true, // 照片下方的💬留言按鈕
-    ENABLE_MESSAGE_BOARD: true,        // 個人頁的留言板
-    ENABLE_FILTER_BAR: true,           // 群組頁的篩選列
-    ENABLE_PERSONAL_TAGS: true         // 個人頁的標籤篩選
+    ENABLE_LIKE_BUTTON: false,          // 照片可按讚（false時只顯示❤️數字）
+    ENABLE_PHOTO_COMMENT_BUTTON: false, // 照片下方的💬留言按鈕
+    ENABLE_MESSAGE_BOARD: false,        // 個人頁的留言板
+    ENABLE_FILTER_BAR: false,           // 群組頁的篩選列
+    ENABLE_PERSONAL_TAGS: false         // 個人頁的標籤篩選
 };
 
 // ========== 全域變數 ==========
