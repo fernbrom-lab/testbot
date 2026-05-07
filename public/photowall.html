@@ -325,7 +325,7 @@ async function loadDateOptions() {
     availableYears = Array.from(years).sort().reverse();
     availableMonths = monthsMap;
     const yearSelect = document.getElementById('yearSelect');
-    yearSelect.innerHTML = '<option value="all">📅 全部年份</option>';
+    yearSelect.innerHTML = '<option value="all">📅年</option>';
     availableYears.forEach(year => {
         const option = document.createElement('option');
         option.value = year;
@@ -333,19 +333,19 @@ async function loadDateOptions() {
         yearSelect.appendChild(option);
     });
     const monthSelect = document.getElementById('monthSelect');
-    monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+    monthSelect.innerHTML = '<option value="all">📆月</option>';
 }
 function onYearChange() {
     const yearSelect = document.getElementById('yearSelect');
     currentYear = yearSelect.value;
     const monthSelect = document.getElementById('monthSelect');
     if (currentYear === 'all') {
-        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+        monthSelect.innerHTML = '<option value="all">📆月</option>';
         currentMonth = 'all';
         monthSelect.value = 'all';
     } else {
         const months = availableMonths.get(currentYear) || new Set();
-        monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+        monthSelect.innerHTML = '<option value="all">📆月</option>';
         const sortedMonths = Array.from(months).sort().reverse();
         sortedMonths.forEach(month => {
             const option = document.createElement('option');
@@ -437,7 +437,7 @@ async function showUsers() {
     const yearSelect = document.getElementById('yearSelect');
     if(yearSelect) yearSelect.value = 'all';
     const monthSelect = document.getElementById('monthSelect');
-    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆 全部月份</option>';
+    if(monthSelect) monthSelect.innerHTML = '<option value="all">📆月</option>';
     await loadDateOptions();
     await applyDateFilter();
 }
