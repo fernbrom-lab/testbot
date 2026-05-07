@@ -8,7 +8,6 @@
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
         
-        /* 主導覽列 */
         .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
         .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
         .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; }
@@ -367,14 +366,7 @@ async function loadMessages(userId) {
         currentMessages = await res.json();
     } catch(e) { currentMessages = []; }
 }
-async function postMessage(targetUserId, content, photoId = null, photoUrl = null) {
-    const res = await fetch('/api/messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId, senderId: currentUserId, content, photoId, photoUrl })
-    });
-    return await res.json();
-}
-async function postPhotoComment(targetUserId, content, photoUrl, photoTime) {
+async function postMessage(targetUserId, content, photoUrl = null, photoTime = null) {
     const res = await fetch('/api/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetUserId, senderId: currentUserId, content, photoUrl, photoTime })
@@ -490,7 +482,9 @@ function renderPersonalPage(profile, userId) {
     function refreshPersonalPhotos(tag) {
         currentTag = tag;
         const container = document.getElementById('personalPhotosContainer');
-        if(container) container.innerHTML = renderPhotosContent(tag);
+        if(container) {
+            container.innerHTML = renderPhotosContent(tag);
+        }
         document.querySelectorAll('.personal-tag-btn').forEach(btn => btn.classList.remove('active'));
         const btns = document.querySelectorAll('.personal-tag-btn');
         if(tag==='all') btns[0].classList.add('active');
@@ -536,7 +530,7 @@ function renderPersonalPage(profile, userId) {
     window.commentOnPhoto = async (photoUrl, photoTime) => {
         const content = prompt('留言給這位朋友：');
         if(!content || !content.trim()) return;
-        await postPhotoComment(userId, content, photoUrl, photoTime);
+        await postMessage(userId, content, photoUrl, photoTime);
         await loadMessages(userId);
         if(currentPersonalMode === 'messages') refreshMessages();
         alert('留言已送出！');
@@ -602,7 +596,7 @@ function renderPersonalPage(profile, userId) {
                 <button class="personal-tag-btn" onclick="refreshPersonalPhotos('人物')">👤</button>
             </div>
         </div>
-        <div id="personalPhotosDiv" style="display:block;">${renderPhotosContent('all')}</div>
+        <div id="personalPhotosDiv">${renderPhotosContent('all')}</div>
         <div id="personalMessagesDiv" style="display:none;">${renderMessagesContent()}</div>
     `;
     mainContainer.innerHTML = personalHtml;
