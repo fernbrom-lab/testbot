@@ -10,9 +10,9 @@
         
         .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
         .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
-        .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; }
-        .nav-buttons { display:flex; gap:15px; }
-        .nav-btn { background:none; border:none; font-size:16px; cursor:pointer; padding:8px 16px; border-radius:20px; transition:all 0.3s; }
+        .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; }
+        .nav-buttons { display:flex; gap:6px; }
+        .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; }
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         .nav-btn:hover { background:#f0f0f0; }
         
@@ -49,6 +49,26 @@
         .photo-card img { width:100%; height:auto; display:block; }
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
         .photo-card:hover .photo-overlay { opacity:1; }
+        
+        /* 手機版：直接顯示照片資訊 */
+        @media (max-width: 768px) {
+            .photo-overlay {
+                opacity: 1;
+                position: relative;
+                background: rgba(0,0,0,0.7);
+                padding: 8px;
+                font-size: 11px;
+            }
+            .photo-card {
+                margin-bottom: 12px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            .photo-overlay .like-photo-btn {
+                pointer-events: auto;
+            }
+        }
         
         .delete-btn, .set-avatar-btn, .tag-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
@@ -98,7 +118,6 @@
             background: #f0f0f0;
         }
         
-        /* 個人相簿照片卡片 - 日期和說明直接顯示 */
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
         .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
         .user-photo-card img { width:100%; height:auto; display:block; }
@@ -145,7 +164,11 @@
     </style>
 </head>
 <body>
-<div class="navbar"><div class="navbar-content"><div class="logo">📸</div><div class="nav-buttons"><button class="nav-btn active">🏠</button><button class="nav-btn">👥</button></div></div></div>
+<div class="navbar"><div class="navbar-content"><div class="logo" onclick="showAllPhotos()">📸</div><div class="nav-buttons">
+    <button class="nav-btn" onclick="showRandomPhotos()">🎲</button>
+    <button class="nav-btn" onclick="showUsers()">👥</button>
+    <button class="nav-btn" id="myAlbumBtn" onclick="goToMyAlbum()" style="display: none;">👤</button>
+</div></div></div>
 <div id="filterBar" class="filter-bar">
     <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">🏠 全部</button>
     <button class="filter-btn" data-filter="風景" onclick="setFilter('風景')">🌄 風景</button>
@@ -409,7 +432,6 @@ async function showAllPhotos() {
     currentView='all';
     filterBar.style.display = 'none';
     document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
-    document.querySelector('.nav-buttons button:first-child').classList.add('active');
     const container=document.getElementById('mainContainer');
     container.innerHTML='<div class="loading">📷 載入照片中...</div>';
     try {
@@ -421,6 +443,31 @@ async function showAllPhotos() {
         allPhotos = await res.json();
         container.innerHTML = renderPhotoGrid(allPhotos);
     } catch(e) { container.innerHTML='<div class="loading">❌ 載入失敗</div>'; }
+}
+// 隨機探索
+async function showRandomPhotos() {
+    currentView = 'random';
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
+    try {
+        const res = await fetch('/api/photos');
+        let photos = await res.json();
+        for (let i = photos.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [photos[i], photos[j]] = [photos[j], photos[i]];
+        }
+        container.innerHTML = renderPhotoGrid(photos);
+    } catch(e) {
+        container.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
+}
+// 前往我的相簿
+function goToMyAlbum() {
+    if (currentUserId) {
+        showUserPhotos(currentUserId, '', '', '', '');
+    } else {
+        alert('請先從 LINE 個人連結登入，才能查看自己的相簿。\n\n上傳照片後，機器人會傳給您專屬連結。');
+    }
 }
 async function showUserPhotos(userId, displayName, bio, ig, fb) {
     const modalTitle = document.getElementById('userModalTitle');
@@ -649,8 +696,12 @@ const allBtn=document.querySelector('.nav-buttons button:first-child'), usersBtn
 const newAllBtn=allBtn.cloneNode(true), newUsersBtn=usersBtn.cloneNode(true);
 allBtn.parentNode.replaceChild(newAllBtn,allBtn);
 usersBtn.parentNode.replaceChild(newUsersBtn,usersBtn);
-newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showAllPhotos(); };
+newAllBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
 newUsersBtn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); showUsers(); };
+// 控制我的相簿按鈕顯示（僅登入後顯示）
+if (currentUserId) {
+    document.getElementById('myAlbumBtn').style.display = 'inline-block';
+}
 showAllPhotos();
 </script>
 </body>
