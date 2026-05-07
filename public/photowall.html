@@ -18,10 +18,37 @@
         
         .navbar.hide { display: none; }
         
-        .member-avatars { display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; max-width:100%; padding:4px 0; }
-        .member-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; cursor:pointer; border:2px solid #ddd; flex-shrink:0; }
-        .member-avatar:hover { border-color:#667eea; transform:scale(1.05); }
-        .member-avatar.current-user { border-color:#ff4444; box-shadow:0 0 0 2px #ff4444; }
+        /* 成員頭像橫向滾動 - 隱藏滾動條 */
+        .member-avatars {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;  /* Firefox 隱藏滾動條 */
+            -ms-overflow-style: none;  /* IE/Edge 隱藏滾動條 */
+            max-width: 100%;
+            padding: 4px 0;
+        }
+        .member-avatars::-webkit-scrollbar {
+            display: none;  /* Chrome/Safari 隱藏滾動條 */
+        }
+        .member-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            flex-shrink: 0;
+        }
+        .member-avatar:hover {
+            border-color: #667eea;
+            transform: scale(1.05);
+            transition: 0.2s;
+        }
+        .member-avatar.current-user {
+            border-color: #ff4444;
+            box-shadow: 0 0 0 2px #ff4444;
+        }
         
         .filter-bar { display:none; gap:10px; padding:10px; background:white; border-bottom:1px solid #dbdbdb; flex-wrap:wrap; align-items:center; }
         .filter-btn { background:none; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
@@ -141,11 +168,11 @@
 <script>
 // ========== 功能開關 ==========
 const FEATURES = {
-    ENABLE_LIKE_BUTTON: false,          // 照片可按讚（false時只顯示❤️數字）
-    ENABLE_PHOTO_COMMENT_BUTTON: false, // 照片下方的💬留言按鈕
-    ENABLE_MESSAGE_BOARD: false,        // 個人頁的留言板
-    ENABLE_FILTER_BAR: false,           // 群組頁的篩選列
-    ENABLE_PERSONAL_TAGS: false         // 個人頁的標籤篩選
+    ENABLE_LIKE_BUTTON: true,          // 照片可按讚（false時只顯示❤️數字）
+    ENABLE_PHOTO_COMMENT_BUTTON: true, // 照片下方的💬留言按鈕
+    ENABLE_MESSAGE_BOARD: true,        // 個人頁的留言板
+    ENABLE_FILTER_BAR: true,           // 群組頁的篩選列
+    ENABLE_PERSONAL_TAGS: true         // 個人頁的標籤篩選
 };
 
 // ========== 全域變數 ==========
