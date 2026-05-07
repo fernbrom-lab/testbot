@@ -17,6 +17,9 @@
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         .nav-btn:hover { background:#f0f0f0; }
         
+        /* 隱藏主導覽列 */
+        .navbar.hide { display: none; }
+        
         /* 成員頭像橫向滾動 */
         .member-avatars { display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; max-width:100%; padding:4px 0; }
         .member-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; cursor:pointer; border:2px solid #ddd; flex-shrink:0; }
@@ -98,7 +101,7 @@
 </head>
 <body>
 <!-- 主導覽列 -->
-<div class="navbar">
+<div id="mainNavbar" class="navbar">
     <div class="navbar-content">
         <div class="logo" onclick="showTimeline()">📸</div>
         <div id="navRight" class="nav-right">
@@ -145,6 +148,7 @@ else { currentUserId = localStorage.getItem('userId'); }
 // ========== DOM 元素 ==========
 const mainContainer = document.getElementById('mainContainer');
 const filterBar = document.getElementById('filterBar');
+const mainNavbar = document.getElementById('mainNavbar');
 const photoModal = document.getElementById('photoModal'), modalImg = document.getElementById('modalImage'), modalInfo = document.getElementById('modalInfo');
 const confirmOverlay = document.getElementById('confirmOverlay');
 document.querySelector('.close').onclick = () => photoModal.style.display = "none";
@@ -212,6 +216,7 @@ async function likePhoto(imgUrl, spanId) {
 
 // ========== 導覽列控制 ==========
 function setNavToDefault() {
+    mainNavbar.classList.remove('hide');
     document.getElementById('navRight').innerHTML = `
         <button class="nav-btn" onclick="showRandom()">🎲</button>
         <button class="nav-btn" onclick="showGroup()">👥</button>
@@ -219,7 +224,11 @@ function setNavToDefault() {
     `;
 }
 function setNavToAvatars(html) {
+    mainNavbar.classList.remove('hide');
     document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
+}
+function hideMainNavbar() {
+    mainNavbar.classList.add('hide');
 }
 
 // ========== 首頁 ==========
@@ -346,6 +355,7 @@ async function showMyAlbum() {
 async function showPersonalAlbum(userId) {
     currentMode = 'personal';
     filterBar.style.display = 'none';
+    hideMainNavbar();  // 隱藏主導覽列
     mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
     try {
         // 個人資料
