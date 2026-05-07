@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>📸 回憶照片牆</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
+        
+        /* 導覽列 */
+        .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
+        .navbar-content { max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }
+        .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; }
+        .nav-buttons { display:flex; gap:6px; }
+        .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; }
+        .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        .nav-btn:hover { background:#f0f0f0; }
+
+        /* 篩選列 */
+        .filter-bar { display: none; gap: 10px; padding: 10px; background: white; border-bottom: 1px solid #dbdbdb; flex-wrap: wrap; align-items: center; }
+        .filter-btn { background: none; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .filter-btn.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
+        .date-select { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; }
+
+        /* 內容容器 */
+        .container { width:100%; margin:0; padding:0; }
+        .loading { text-align:center; padding:50px; color:#999; }
+
+        /* 群組使用者網格 */
+        .users-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:20px; padding:20px; }
+        .user-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.1); cursor:pointer; transition:transform 0.3s; text-align:center; padding:20px; position:relative; }
+        .user-card:hover { transform:translateY(-5px); }
+        .user-avatar { width:80px; height:80px; border-radius:50%; object-fit:cover; margin:0 auto 12px; border:3px solid #667eea; }
+        .user-name { font-weight:bold; margin-bottom:5px; font-size:14px; }
+        .user-count { font-size:12px; color:#999; }
+
+        /* 照片網格 (瀑布流樣式) */
+        .photo-grid { column-count:4; column-gap:10px; padding:10px; }
+        .photo-card { display:inline-block; width:100%; margin-bottom:10px; position:relative; cursor:pointer; background:#f0f0f0; border-radius:8px; overflow:hidden; break-inside:avoid; }
+        .photo-card img { width:100%; height:auto; display:block; }
+        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:12px; }
+        .photo-card:hover .photo-overlay { opacity:1; }
+
+        /* 彈窗樣式 */
+        .modal, .user-modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.9); z-index:1000; overflow-y:auto; }
+        .user-modal { background: #fafafa; }
+        .user-modal-header { position:sticky; top:0; background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; z-index:1010; }
+        .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
+        .modal-image { width:100%; height:auto; border-radius:10px; }
+
+        /* 個人頁面元件 */
+        .profile-messages-wrapper { display:flex; gap:12px; padding:12px; flex-wrap: wrap; }
+        .profile-section { flex:1; min-width: 300px; background:white; border-radius:16px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .messages-section { flex:2; min-width: 300px; background:white; border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .user-photo-grid { column-count:3; column-gap:4px; padding:4px; }
+        .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; }
+        .user-photo-card img { width:100%; border-radius:4px; }
+
+        /* 按鈕小工具 */
+        .delete-btn, .set-avatar-btn { position:absolute; top:5px; background:rgba(0,0,0,0.5); color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; }
+        .delete-btn { right:5px; background:rgba(255,68,68,0.8); }
+        .set-avatar-btn { right:38px; }
+
+        @media (max-width: 768px) {
+            .photo-grid { column-count:2; }
+            .user-photo-grid { column-count:2; }
+            .profile-messages-wrapper { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="logo" onclick="showAllPhotos()">📸</div>
+        <div class="nav-buttons">
+            <button class="nav-btn" onclick="showRandomPhotos()" title="隨機探索">🎲</button>
+            <button class="nav-btn" onclick="showUsers()" title="群組成員">👥</button>
+            <button class="nav-btn" id="myAlbumBtn" onclick="goToMyAlbum()" title="我的相簿">👤</button>
+        </div>
+    </div>
+</div>
+
+<div id="filterBar" class="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">🏠 全部</button>
+    <button class="filter-btn" data-filter="風景" onclick="setFilter('風景')">🌄 風景</button>
+    <button class="filter-btn" data-filter="美食" onclick="setFilter('美食')">🍜 美食</button>
+    <button class="filter-btn" data-filter="人物" onclick="setFilter('人物')">👤 人物</button>
+    <div style="margin-left: auto; display: flex; gap: 5px;">
+        <select id="yearSelect" class="date-select" onchange="onYearChange()"><option value="all">年份</option></select>
+        <select id="monthSelect" class="date-select" onchange="onMonthChange()"><option value="all">月份</option></select>
+    </div>
+</div>
+
+<div class="container" id="mainContainer">
+    <div class="loading">📷 載入中...</div>
+</div>
+
+<!-- 照片大圖彈窗 -->
+<div id="photoModal" class="modal">
+    <span style="position:absolute; top:20px; right:30px; color:white; font-size:40px; cursor:pointer;" onclick="closeModal()">&times;</span>
+    <div class="modal-content">
+        <img class="modal-image" id="modalImage">
+        <div id="modalInfo" style="color:white; text-align:center; margin-top:15px;"></div>
+    </div>
+</div>
+
+<!-- 個人相簿彈窗 -->
+<div id="userModal" class="user-modal">
+    <div class="user-modal-header">
+        <button style="background:none; border:none; font-size:20px; cursor:pointer;" onclick="closeUserModal()">⬅️ 返回</button>
+        <div id="userModalTitle" style="font-weight:bold;"></div>
+        <div style="width:40px;"></div>
+    </div>
+    <div id="userModalGrid"></div>
+</div>
+
+<script>
+// --- 基礎變數與身分檢查 ---
+let currentUserId = '';
+let userNameMap = new Map();
+let allPhotos = [];
+let currentTagFilter = 'all';
+
+// 初始化身分：優先從 URL 抓取 userId，若無則看 localStorage
+const urlParams = new URLSearchParams(window.location.search);
+const userIdParam = urlParams.get('userId');
+if (userIdParam) {
+    localStorage.setItem('userId', userIdParam);
+    currentUserId = userIdParam;
+} else {
+    currentUserId = localStorage.getItem('userId');
+}
+
+// --- 導覽功能 ---
+
+async function showAllPhotos() {
+    updateNavActive(-1); // 首頁 logo 不亮燈
+    filterBar.style.display = 'none';
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">📷 載入最新照片...</div>';
+    try {
+        await fetchUserMap();
+        const res = await fetch('/api/photos');
+        allPhotos = await res.json();
+        container.innerHTML = renderPhotoGrid(allPhotos);
+    } catch(e) { container.innerHTML = '<div class="loading">❌ 無法載入內容</div>'; }
+}
+
+function showRandomPhotos() {
+    updateNavActive(0); // 🎲 亮燈
+    filterBar.style.display = 'none';
+    let shuffled = [...allPhotos].sort(() => 0.5 - Math.random());
+    document.getElementById('mainContainer').innerHTML = renderPhotoGrid(shuffled);
+}
+
+async function showUsers() {
+    updateNavActive(1); // 👥 亮燈
+    filterBar.style.display = 'flex';
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="loading">👥 載入成員中...</div>';
+    await applyDateFilter(); // 這裡會渲染成員列表 + 群組照片
+}
+
+function goToMyAlbum() {
+    if (!currentUserId) {
+        alert('請先從 LINE 機器人提供的專屬連結進入，才能查看個人相簿。');
+        return;
+    }
+    updateNavActive(2); // 👤 亮燈
+    showUserPhotos(currentUserId);
+}
+
+function updateNavActive(index) {
+    const btns = document.querySelectorAll('.nav-btn');
+    btns.forEach((btn, i) => {
+        if(i === index) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+}
+
+// --- 資料渲染 ---
+
+async function fetchUserMap() {
+    try {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        users.forEach(u => userNameMap.set(u.userId, u.displayName || u.userId.substring(0,8)));
+    } catch(e) {}
+}
+
+function renderPhotoGrid(photos) {
+    if(!photos || photos.length === 0) return '<div class="loading">暫無照片</div>';
+    let html = '<div class="photo-grid">';
+    photos.forEach(p => {
+        const name = userNameMap.get(p.userId) || '匿名';
+        html += `
+            <div class="photo-card" onclick="showPhotoDetail('${p.imageUrl}', '${p.userId}', '${p.time}', '${(p.message||'').replace(/'/g, "\\'")}')">
+                <img src="${p.imageUrl}" loading="lazy">
+                <div class="photo-overlay">
+                    👤 ${name}<br>📅 ${new Date(p.time).toLocaleDateString()}
+                </div>
+            </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+// --- 個人相簿邏輯 (Modal) ---
+
+async function showUserPhotos(userId) {
+    const grid = document.getElementById('userModalGrid');
+    const title = document.getElementById('userModalTitle');
+    userModal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    grid.innerHTML = '<div class="loading">📷 載入個人資料...</div>';
+
+    try {
+        const [profileRes, photoRes, msgRes] = await Promise.all([
+            fetch(`/api/user/profile/${userId}`).then(r => r.json()),
+            fetch(`/api/photos/user/${userId}`).then(r => r.json()),
+            fetch(`/api/messages/${userId}`).then(r => r.json())
+        ]);
+
+        title.innerText = `👤 ${profileRes.displayName || '個人相簿'}`;
+
+        grid.innerHTML = `
+            <div class="profile-messages-wrapper">
+                <div class="profile-section" style="text-align:center;">
+                    <img src="${profileRes.avatarUrl || photoRes[0]?.imageUrl || ''}" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid #667eea;">
+                    <h2 style="margin:10px 0;">${profileRes.displayName || userId}</h2>
+                    <p style="font-size:14px; color:#666;">${profileRes.bio || '尚未設定簡介'}</p>
+                </div>
+                <div class="messages-section">
+                    <h4 style="border-bottom:1px solid #eee; padding-bottom:8px; margin-bottom:10px;">留言板</h4>
+                    <div id="msgList">${renderMessages(msgRes)}</div>
+                </div>
+            </div>
+            <div class="user-photo-grid">
+                ${photoRes.map(p => `
+                    <div class="user-photo-card">
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="deletePhoto('${p.imageUrl}')">🗑️</button>` : ''}
+                        <img src="${p.imageUrl}" onclick="showPhotoDetail('${p.imageUrl}','${p.userId}','${p.time}','')">
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch(e) { grid.innerHTML = '<div class="loading">❌ 無法載入個人頁面</div>'; }
+}
+
+function renderMessages(msgs) {
+    if(!msgs || msgs.length === 0) return '<p style="color:#999; font-size:12px;">尚無留言</p>';
+    return msgs.map(m => `
+        <div style="font-size:13px; margin-bottom:8px; border-bottom:1px dashed #eee; padding-bottom:4px;">
+            <strong>${m.senderName}:</strong> ${m.content}
+        </div>
+    `).join('');
+}
+
+// --- 其他功能 ---
+
+async function applyDateFilter() {
+    const container = document.getElementById('mainContainer');
+    try {
+        const usersRes = await fetch('/api/users');
+        const users = await usersRes.json();
+        
+        let html = '<div class="users-grid">';
+        users.forEach(u => {
+            html += `
+                <div class="user-card" onclick="showUserPhotos('${u.userId}')">
+                    <img class="user-avatar" src="${u.latestPhoto || ''}" onerror="this.src='https://via.placeholder.com/80?text=👤'">
+                    <div class="user-name">${u.displayName || u.userId.substring(0,8)}</div>
+                    <div class="user-count">📸 ${u.photoCount} 張照片</div>
+                </div>`;
+        });
+        html += '</div>';
+        
+        // 加上目前的群組照片流
+        html += '<div style="padding:20px;"><h3>📸 群組照片回顧</h3></div>';
+        html += renderPhotoGrid(allPhotos);
+        
+        container.innerHTML = html;
+    } catch(e) { container.innerHTML = '載入失敗'; }
+}
+
+function showPhotoDetail(url, userId, time, msg) {
+    const modal = document.getElementById('photoModal');
+    document.getElementById('modalImage').src = url;
+    document.getElementById('modalInfo').innerHTML = `👤 ${userNameMap.get(userId)} · 📅 ${new Date(time).toLocaleDateString()}<br>${msg}`;
+    modal.style.display = 'block';
+}
+
+function closeModal() { document.getElementById('photoModal').style.display = 'none'; }
+function closeUserModal() { 
+    document.getElementById('userModal').style.display = 'none'; 
+    document.body.style.overflow = 'auto';
+    // 若是點擊導覽列進去的，關閉後可以決定是否回歸首頁亮燈狀態
+}
+
+// 初始化
+window.onload = () => {
+    showAllPhotos();
+};
+
+</script>
+</body>
+</html>
