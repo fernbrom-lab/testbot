@@ -713,16 +713,28 @@ function showPhotoDetail(imageUrl,userId,time,message,fromUserModal=false){
 function deleteCurrentPhoto(imageUrl,userId){ photoModal.style.display='none'; showConfirm(imageUrl,userId,()=>{ location.reload(); }); }
 userModal.onclick=(e)=>{ if(e.target===userModal) closeUserModal(); };
 
-// 導覽列按鈕綁定
-const allBtn = document.querySelector('.nav-buttons button:first-child');
-const usersBtn = document.querySelector('.nav-buttons button:last-child');
-const newAllBtn = allBtn.cloneNode(true);
-const newUsersBtn = usersBtn.cloneNode(true);
-allBtn.parentNode.replaceChild(newAllBtn, allBtn);
-usersBtn.parentNode.replaceChild(newUsersBtn, usersBtn);
-newAllBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
-newUsersBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showUsers(); };
+// ========== 導覽列按鈕綁定 (修正版) ==========
+// 使用明確的順序來選擇按鈕，避免選錯
+const randomBtn = document.querySelector('.nav-buttons .nav-btn:nth-child(1)'); // 第1個: 🎲
+const usersBtn = document.querySelector('.nav-buttons .nav-btn:nth-child(2)'); // 第2個: 👥
+const myAlbumBtn = document.getElementById('myAlbumBtn');                     // 第3個: 👤
 
+// 重新建立按鈕，確保事件不會衝突
+const newRandomBtn = randomBtn.cloneNode(true);
+const newUsersBtn = usersBtn.cloneNode(true);
+const newMyBtn = myAlbumBtn.cloneNode(true);
+
+// 用新按鈕取代舊按鈕
+randomBtn.parentNode.replaceChild(newRandomBtn, randomBtn);
+usersBtn.parentNode.replaceChild(newUsersBtn, usersBtn);
+myAlbumBtn.parentNode.replaceChild(newMyBtn, myAlbumBtn);
+
+// 綁定正確的事件
+newRandomBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showRandomPhotos(); };
+newUsersBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); showUsers(); };
+newMyBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); goToMyAlbum(); };
+
+// 啟動頁面，顯示全部照片
 showAllPhotos();
 </script>
 </body>
