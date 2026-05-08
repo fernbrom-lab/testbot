@@ -11,7 +11,7 @@
         .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
         .navbar-content { width:100%; margin:0; display:flex; justify-content:space-between; align-items:center; }
         .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; flex-shrink:0; }
-        .qrcode-banner { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; flex-shrink:0; }
+        .qrcode-banner { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; flex-shrink:0;text-decoration: none; }
         .nav-right { display:flex; gap:8px; align-items:center; flex:1; justify-content:flex-end; overflow:visible; min-width:0; }
         .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; flex-shrink:0; }
         .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
@@ -159,7 +159,7 @@
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
         <div class="logo" onclick="showTimeline()">📸</div>
-        <div class="qrcode-banner"><a href="">📱 掃描上傳！</a></div>
+        <div class="qrcode-banner"><a href="qrcode.html">📱 說明！</a></div>
         <div id="navRight" class="nav-right">
             <button class="nav-btn" onclick="showRandom()">🎲</button>
             <button class="nav-btn" onclick="showGroup()">👥</button>
