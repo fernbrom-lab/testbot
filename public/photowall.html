@@ -180,7 +180,15 @@
 <div id="mainContainer" class="container"><div class="loading">📷 載入中...</div></div>
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 <div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
-<div id="confirmOverlay" class="confirm-overlay"><div class="confirm-dialog"><p>確定要刪除這則留言嗎？</p><div class="confirm-buttons"><button class="confirm-btn cancel" onclick="hideConfirm()">取消</button><button class="confirm-btn confirm" onclick="executeDeleteMsg()">刪除</button></div></div></div>
+<div id="confirmOverlay" class="confirm-overlay">
+    <div class="confirm-dialog">
+        <p>確定要刪除這張照片嗎？</p>
+        <div class="confirm-buttons">
+            <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
+            <button class="confirm-btn confirm" id="confirmDeleteBtn">刪除</button>
+        </div>
+    </div>
+</div>
 
 <script>
 // ========== 功能開關 ==========
@@ -244,8 +252,30 @@ function formatTimeAgo(isoString) {
 }
 function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
-function showConfirm(imgUrl, uid, cb) { pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb }; document.getElementById('confirmOverlay').querySelector('p').innerText='確定要刪除這張照片嗎？'; confirmOverlay.style.display = 'flex'; }
-function showConfirmMsg(msgId, cb) { pendingDeleteMsg = { messageId: msgId, refreshCallback: cb }; document.getElementById('confirmOverlay').querySelector('p').innerText='確定要刪除這則留言嗎？'; confirmOverlay.style.display = 'flex'; }
+function showConfirm(imgUrl, uid, cb) {
+    pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    overlay.style.display = 'flex';
+}
+
+function showConfirmMsg(msgId, cb) {
+    pendingDeleteMsg = { messageId: msgId, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這則留言嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDeleteMsg();
+    overlay.style.display = 'flex';
+}
+
+function hideConfirm() {
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+    pendingDeleteMsg = { messageId: null, refreshCallback: null };
+}
 async function executeDelete() {
     if(!pendingDelete.imageUrl) return;
     const { imageUrl, userId, refreshCallback } = pendingDelete;
