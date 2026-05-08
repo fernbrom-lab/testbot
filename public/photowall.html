@@ -676,7 +676,8 @@ function renderPersonalPage(profile, userId) {
         <div class="personal-nav">
             <div class="personal-nav-row1">
                 <div class="personal-nav-left">
-                    <button class="back-arrow" onclick="showTimeline()">←</button>
+                   <button style="margin-left: 5px;" onclick="showTimeline()">📸</button>
+                   <button class="back-arrow" onclick="showGroup()">👥</button>
                     <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
                     <span class="personal-name">${titleName}</span>
                     ${isOwner ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}', '${titleName}')">✏️</button>` : ''}
