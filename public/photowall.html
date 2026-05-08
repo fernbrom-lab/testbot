@@ -700,6 +700,20 @@ function renderPersonalPage(profile, userId) {
     `;
     mainContainer.innerHTML = personalHtml;
 }
+    // 重新綁定刪除按鈕事件（確保點擊有效）
+setTimeout(() => {
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        const originalOnclick = btn.getAttribute('onclick');
+        if (originalOnclick && !btn.hasAttribute('data-rebound')) {
+            btn.removeAttribute('onclick');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eval(originalOnclick);
+            });
+            btn.setAttribute('data-rebound', 'true');
+        }
+    });
+}, 100);
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
     const isOwner = currentUserId && userId === currentUserId;
