@@ -78,7 +78,7 @@
             .nav-btn { padding:4px 8px; font-size:18px; }
             .member-avatars { padding:4px 8px 4px 4px; }
         }
-        @media (min-width:769px){ .photo-grid { column-count:3; } }
+        @media (max-width:768px){ .photo-grid { column-count:3; } }
         
         .delete-btn, .set-avatar-btn, .tag-btn, .photo-msg-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
@@ -112,10 +112,10 @@
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
         .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
         .user-photo-card img { width:100%; height:auto; display:block; }
-        .user-photo-info { padding:6px 8px; background:rgba(0,0,0,0.6); color:white; font-size:11px; position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
-        .user-photo-info .date { font-size:10px; opacity:0.9; }
-        .user-photo-info .message { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .user-photo-info .like-btn { background:none; border:none; color:#ff4444; cursor:pointer; font-size:12px; padding:0 4px; }
+        .user-photo-info { padding:6px 8px; background:rgba(0,0,0,0.6); color:white; font-size:11px; position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;display: none; }
+        .user-photo-info .date { font-size:10px; opacity:0.9;display: none; }
+        .user-photo-info .message { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;display: none; }
+        .user-photo-info .like-btn { background:none; border:none; color:#ff4444; cursor:pointer; font-size:12px; padding:0 4px;display: none; }
         @media (min-width:769px){ .user-photo-grid { column-count:3; } }
         
         .messages-container { padding:12px; background:#fafafa; min-height:300px; }
