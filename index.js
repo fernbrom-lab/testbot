@@ -276,8 +276,8 @@ app.post('/webhook', async (req, res) => {
           await replyToUser(replyToken, 
             `📸 照片已儲存！\n\n` +
             `📝 如需加上說明文字，請在 1 分鐘內輸入（直接傳送文字即可）\n` +
-            `⏸️ 不想寫說明請傳送「略過」\n\n` +
-            `🏠 照片牆：https://fbtestbot.onrender.com/photowall`
+            `⏸️ 不想寫說明可繼續上傳照片\n\n` +
+            `🏠 照片牆：https://photo.fernbrom.com`
           );
         } else {
           await replyToUser(replyToken, '❌ 圖片上傳失敗，請稍後再試');
