@@ -277,7 +277,7 @@ app.post('/webhook', async (req, res) => {
             `📸 照片已儲存！\n\n` +
             `📝 如需加上說明文字，請在 1 分鐘內輸入（直接傳送文字即可）\n` +
             `⏸️ 不想寫說明可繼續上傳照片\n\n` +
-            `🏠 照片牆：https://photo.fernbrom.com` +
+            `🏠 照片牆：https://photo.fernbrom.com/` +
             `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://photo.fernbrom.com/user/${userId}`                
           );
         } else {
