@@ -19,7 +19,6 @@
         
         .navbar.hide { display: none; }
         
-        /* 修正：頭像容器右側留白，防止被切一刀 */
         .member-avatars {
             display: flex;
             gap: 8px;
@@ -29,12 +28,10 @@
             flex: 1;
             min-width: 0;
             max-width: 100%;
-            padding: 4px 12px 4px 4px;      /* 右邊留白 12px */
+            padding: 4px 12px 4px 4px;
             scroll-padding-right: 12px;
         }
-        .member-avatars::-webkit-scrollbar {
-            display: none;
-        }
+        .member-avatars::-webkit-scrollbar { display: none; }
         .member-avatar {
             width: 40px;
             height: 40px;
@@ -44,18 +41,9 @@
             border: 2px solid #ddd;
             flex-shrink: 0;
         }
-        .member-avatar:hover {
-            border-color: #667eea;
-            transform: scale(1.05);
-            transition: 0.2s;
-        }
-        .member-avatar.current-user {
-            border-color: #ff4444;
-            box-shadow: 0 0 0 2px #ff4444;
-        }
-        .member-avatar:last-child {
-            margin-right: 8px;   /* 最後一個頭像額外右邊距 */
-        }
+        .member-avatar:hover { border-color: #667eea; transform: scale(1.05); transition: 0.2s; }
+        .member-avatar.current-user { border-color: #ff4444; box-shadow: 0 0 0 2px #ff4444; }
+        .member-avatar:last-child { margin-right: 8px; }
         
         .filter-bar { display:none; gap:10px; padding:10px; background:white; border-bottom:1px solid #dbdbdb; flex-wrap:wrap; align-items:center; }
         .filter-btn { background:none; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
@@ -70,22 +58,29 @@
         .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
         .photo-card:hover .photo-overlay { opacity:1; }
         
+        /* 圖片懶載入動畫效果 */
+        .lazy-img {
+            transition: filter 0.2s ease-out, opacity 0.3s ease;
+            filter: blur(4px);
+            opacity: 0.8;
+            background-color: #f0f0f0;
+        }
+        .lazy-img.loaded {
+            filter: blur(0);
+            opacity: 1;
+        }
+        
         @media (max-width:768px){
-            .photo-overlay { opacity:1; position:relative; background:rgba(0,0,0,0.7); padding:8px; font-size:11px; }
+            .photo-overlay { opacity:1; position:relative; background:rgba(0,0,0,0.7); padding:8px; font-size:11px; display: block; }
             .photo-card { margin-bottom:5px; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
             .member-avatar { width:36px; height:36px; }
             .photo-grid { column-count:2; }
-           
-    /* 如果也想隱藏首頁/群組頁的 hover 資訊 */
-    .photo-overlay {
-        display: none;
-    }
-}
+            .photo-overlay { display: block; }
             .nav-right { gap:4px; }
             .nav-btn { padding:4px 8px; font-size:18px; }
             .member-avatars { padding:4px 8px 4px 4px; }
+            .lazy-img { filter: blur(2px); }
         }
-        @media (max-width:768px){ .photo-grid { column-count:2; } }
         
         .delete-btn, .set-avatar-btn, .tag-btn, .photo-msg-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
         .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
@@ -111,38 +106,11 @@
         .personal-name { font-weight:bold; font-size:16px; }
         .edit-name-btn { background:none; border:none; color:#667eea; cursor:pointer; font-size:14px; margin-left:6px; }
         .personal-action-btn { background:#667eea; color:white; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
-        .personal-bio { font-size:13px; color:#666; margin-bottom:8px; padding-left:52px;display: none; }
-        .personal-tags { display:flex; gap:8px; padding-left:52px; }
-        .personal-tag-btn { background:none; border:none; padding:4px 12px; border-radius:20px; cursor:pointer; font-size:13px; }
-        .personal-tag-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
         
         .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
         .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
         .user-photo-card img { width:100%; height:auto; display:block; }
-        .user-photo-info { padding:6px 8px; background:rgba(0,0,0,0.6); color:white; font-size:11px; position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;display: none; }
-        .user-photo-info .date { font-size:10px; opacity:0.9;display: none; }
-        .user-photo-info .message { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;display: none; }
-        .user-photo-info .like-btn { background:none; border:none; color:#ff4444; cursor:pointer; font-size:12px; padding:0 4px;display: none; }
         @media (min-width:769px){ .user-photo-grid { column-count:3; } }
-        
-        .messages-container { padding:12px; background:#fafafa; min-height:300px; }
-        .message-item { background:white; border-radius:12px; padding:12px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; gap:12px; }
-        .message-photo { width:60px; height:60px; border-radius:8px; object-fit:cover; background:#f0f0f0; flex-shrink:0; cursor:pointer; }
-        .message-content { flex:1; }
-        .message-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
-        .message-sender { font-weight:bold; font-size:13px; }
-        .message-time { font-size:11px; color:#999; }
-        .message-text { font-size:14px; color:#333; margin-bottom:8px; word-break:break-word; }
-        .message-photo-ref { display:flex; align-items:center; gap:6px; margin-bottom:8px; background:#f5f5f5; padding:6px 10px; border-radius:8px; cursor:pointer; }
-        .message-photo-ref img { width:30px; height:30px; border-radius:4px; object-fit:cover; }
-        .message-actions { display:flex; gap:16px; }
-        .message-action-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0; }
-        .like-btn { color:#ff4444; }
-        .reply-btn { color:#667eea; }
-        .delete-btn-msg { color:#999; }
-        .message-input-area { background:white; border-radius:12px; padding:12px; margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-        .message-input { flex:1; padding:10px 12px; border:1px solid #ddd; border-radius:25px; outline:none; font-size:14px; }
-        .send-btn { background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer; }
         
         .loading { text-align:center; padding:50px; color:#999; }
         .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
@@ -153,50 +121,15 @@
         .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
         .confirm-btn.confirm { background:#ff4444; color:white; }
         .confirm-btn.cancel { background:#ddd; color:#333; }
-        /* 圖片懶載入動畫效果 */
-.lazy-img {
-    transition: filter 0.2s ease-out, opacity 0.3s ease;
-    filter: blur(4px);
-    opacity: 0.8;
-    background-color: #f0f0f0;
-}
-
-.lazy-img.loaded {
-    filter: blur(0);
-    opacity: 1;
-}
-
-/* 手機版降低模糊強度，減少視覺不適 */
-@media (max-width: 768px) {
-    .lazy-img {
-        filter: blur(2px);
-    }
-}
-
-/* 可選：圖片載入時的骨架屏效果 */
-.photo-card {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-
-.photo-card img.loaded {
-    animation: none;
-    background: none;
-}
     </style>
 </head>
 <body>
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
         <div class="logo" onclick="showTimeline()">📸</div>
-        <div class="qrcode-banner"><a href="qrcode.html"style="text-decoration: none;" >ℹ️</a></div>
+        <div class="qrcode-banner"><a href="qrcode.html" style="text-decoration: none;">ℹ️</a></div>
         <div id="navRight" class="nav-right">
+            <button class="nav-btn" onclick="showTimeline()">🏠</button>
             <button class="nav-btn" onclick="showRandom()">🎲</button>
             <button class="nav-btn" onclick="showGroup()">👥</button>
             <button class="nav-btn" onclick="showMyAlbum()">👤</button>
@@ -223,7 +156,9 @@
             <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
             <button class="confirm-btn confirm" id="confirmDeleteBtn">刪除</button>
         </div>
-    </div></div>
+    </div>
+</div>
+
 <script>
 // ========== 功能開關 ==========
 const FEATURES = {
@@ -245,10 +180,7 @@ let availableMonths = new Map();
 let allMembers = [];
 let userNameMap = new Map();
 let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
-let pendingDeleteMsg = { messageId: null, refreshCallback: null };
 let currentPersonalUserId = null;
-let currentPersonalMode = 'photos';
-let currentMessages = [];
 let currentPhotosData = [];
 
 // 分頁變數
@@ -264,14 +196,12 @@ const imageObserver = new IntersectionObserver((entries, observer) => {
             const img = entry.target;
             const highResSrc = img.dataset.src;
             if (highResSrc && !img.classList.contains('loaded')) {
-                // 建立新圖片預先載入高解析度版本
                 const highResImg = new Image();
                 highResImg.onload = () => {
                     img.src = highResSrc;
                     img.classList.add('loaded');
                 };
                 highResImg.onerror = () => {
-                    // 如果高解析度載入失敗，維持縮圖
                     img.classList.add('loaded');
                 };
                 highResImg.src = highResSrc;
@@ -281,10 +211,7 @@ const imageObserver = new IntersectionObserver((entries, observer) => {
             observer.unobserve(img);
         }
     });
-}, { 
-    rootMargin: '300px',  // 提前 300px 開始載入
-    threshold: 0.01 
-});
+}, { rootMargin: '300px', threshold: 0.01 });
 
 const urlUserId = new URLSearchParams(window.location.search).get('userId');
 if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
@@ -298,20 +225,10 @@ const confirmOverlay = document.getElementById('confirmOverlay');
 
 // ========== 輔助函數 ==========
 function formatFullDateTime(isoString) { if(!isoString) return ''; const d=new Date(isoString); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
-function formatTimeAgo(isoString) {
-    if(!isoString) return '';
-    const d=new Date(isoString), now=new Date();
-    const diff = Math.floor((now-d)/1000);
-    if(diff<60) return '剛剛';
-    if(diff<3600) return `${Math.floor(diff/60)}分鐘前`;
-    if(diff<86400) return `${Math.floor(diff/3600)}小時前`;
-    return `${Math.floor(diff/86400)}天前`;
-}
 function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-// 觀察所有圖片
 function observeAllImages() {
     document.querySelectorAll('.lazy-img').forEach(img => {
         if (!img.classList.contains('observed')) {
@@ -321,7 +238,159 @@ function observeAllImages() {
     });
 }
 
-// ========== 照片牆載入（timeline 分頁）==========
+// ========== 日期選項載入 ==========
+async function loadDateOptions() {
+    try {
+        const res = await fetch('/api/photos?page=1&limit=500');
+        const result = await res.json();
+        const photos = result.photos || [];
+        const years = new Set(), monthsMap = new Map();
+        photos.forEach(p => {
+            let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
+            if(ym) {
+                const y = ym.substring(0,4), m = ym.substring(5,7);
+                years.add(y);
+                if(!monthsMap.has(y)) monthsMap.set(y, new Set());
+                monthsMap.get(y).add(m);
+            }
+        });
+        availableYears = Array.from(years).sort().reverse();
+        availableMonths = monthsMap;
+        const yearSel = document.getElementById('yearSelect');
+        if(yearSel) {
+            yearSel.innerHTML = '<option value="all">📅年</option>';
+            availableYears.forEach(y => { const opt = document.createElement('option'); opt.value=y; opt.textContent=`${y}年`; yearSel.appendChild(opt); });
+        }
+        const monthSel = document.getElementById('monthSelect');
+        if(monthSel) monthSel.innerHTML = '<option value="all">📆月</option>';
+    } catch(e) { console.error('載入日期選項失敗:', e); }
+}
+
+function onYearChange() {
+    groupYear = document.getElementById('yearSelect').value;
+    const monthSel = document.getElementById('monthSelect');
+    if (groupYear === 'all') { 
+        monthSel.innerHTML = '<option value="all">📆月</option>'; 
+        groupMonth = 'all'; 
+        monthSel.value = 'all'; 
+    } else {
+        const months = availableMonths.get(groupYear) || new Set();
+        monthSel.innerHTML = '<option value="all">📆月</option>';
+        Array.from(months).sort().reverse().forEach(m => { 
+            const opt = document.createElement('option'); 
+            opt.value=m; 
+            opt.textContent=`${m}月`; 
+            monthSel.appendChild(opt); 
+        });
+        groupMonth = 'all'; 
+        monthSel.value = 'all';
+    }
+    if (currentMode === 'group') loadGroupPhotos();
+}
+
+function onMonthChange() {
+    groupMonth = document.getElementById('monthSelect').value;
+    if (currentMode === 'group') loadGroupPhotos();
+}
+
+function setGroupFilter(tag) {
+    groupTagFilter = tag;
+    document.querySelectorAll('.filter-btn').forEach(btn => { 
+        if(btn.dataset.filter === tag) btn.classList.add('active'); 
+        else btn.classList.remove('active'); 
+    });
+    if (currentMode === 'group') loadGroupPhotos();
+}
+
+// ========== 渲染函數 ==========
+function renderPhotoGrid(photos) {
+    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
+    let html = '<div class="photo-grid">';
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
+        const highResSrc = photo.imageUrlMedium || photo.imageUrl;
+        
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
+                <img class="lazy-img" src="${imgSrc}" data-src="${highResSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <div class="photo-overlay">
+                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
+                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
+                </div>
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function appendPhotoGridOptimized(photos) {
+    const grid = document.querySelector('.photo-grid');
+    if (!grid) return;
+    
+    const fragment = document.createDocumentFragment();
+    const tempDiv = document.createElement('div');
+    let html = '';
+    
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
+        const highResSrc = photo.imageUrlMedium || photo.imageUrl;
+        
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
+                <img class="lazy-img" src="${imgSrc}" data-src="${highResSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <div class="photo-overlay">
+                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
+                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    tempDiv.innerHTML = html;
+    while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
+    grid.appendChild(fragment);
+    observeAllImages();
+}
+
+function showLoadingIndicator() {
+    let indicator = document.getElementById('loadingIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'loadingIndicator';
+        indicator.style.cssText = 'text-align:center;padding:20px;color:#999;';
+        indicator.innerHTML = '📸 載入中...';
+        mainContainer.appendChild(indicator);
+    }
+    indicator.style.display = 'block';
+}
+
+function hideLoadingIndicator() {
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) indicator.style.display = 'none';
+}
+
+function showEndMessage() {
+    const existingMsg = document.querySelector('.end-message');
+    if (existingMsg) existingMsg.remove();
+    const endMsg = document.createElement('div');
+    endMsg.className = 'end-message';
+    endMsg.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:14px;';
+    endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
+    mainContainer.appendChild(endMsg);
+}
+
+// ========== 照片載入函數 ==========
 async function loadTimelinePhotos(reset = true) {
     if (isLoading) return;
     if (reset) {
@@ -352,15 +421,8 @@ async function loadTimelinePhotos(reset = true) {
         }
         
         hideLoadingIndicator();
-        
-        if (!hasMore) {
-            showEndMessage();
-        }
-        
+        if (!hasMore) showEndMessage();
         currentPage++;
-        
-        // 預載入下一頁（可選）
-        // preloadNextPage();
     } catch (error) {
         console.error('載入失敗:', error);
         if (reset) mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
@@ -370,7 +432,6 @@ async function loadTimelinePhotos(reset = true) {
     }
 }
 
-// ========== 隨機照片載入（random 分頁）==========
 async function loadRandomPhotos(reset = true) {
     if (isLoading) return;
     if (reset) {
@@ -401,11 +462,7 @@ async function loadRandomPhotos(reset = true) {
         }
         
         hideLoadingIndicator();
-        
-        if (!hasMore) {
-            showEndMessage();
-        }
-        
+        if (!hasMore) showEndMessage();
         currentPage++;
     } catch (error) {
         console.error('載入失敗:', error);
@@ -416,150 +473,7 @@ async function loadRandomPhotos(reset = true) {
     }
 }
 
-// ========== 優化版追加照片 ==========
-function appendPhotoGridOptimized(photos) {
-    const grid = document.querySelector('.photo-grid');
-    if (!grid) return;
-    
-    const fragment = document.createDocumentFragment();
-    const tempDiv = document.createElement('div');
-    
-    let html = '';
-    photos.forEach(photo => {
-        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
-        const fullDate = formatFullDateTime(photo.time);
-        const likes = photo.likes || 0;
-        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        
-        // 使用縮圖作為 src，高解析度放在 data-src
-        const thumbUrl = photo.imageUrlThumb || photo.imageUrl;
-        const highResUrl = photo.imageUrlMedium || photo.imageUrl;
-        
-        html += `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img class="lazy-img" 
-                     src="${thumbUrl}" 
-                     data-src="${highResUrl}"
-                     loading="lazy"
-                     alt="照片"
-                     style="width:100%;height:auto;display:block;">
-                <div class="photo-overlay">
-                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
-                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">❤️ ${likes}</div>
-                </div>
-            </div>
-        </div>`;
-    });
-    
-    tempDiv.innerHTML = html;
-    while (tempDiv.firstChild) {
-        fragment.appendChild(tempDiv.firstChild);
-    }
-    
-    grid.appendChild(fragment);
-    
-    // 觀察新加入的圖片
-    document.querySelectorAll('.lazy-img').forEach(img => {
-        if (!img.classList.contains('observed')) {
-            img.classList.add('observed');
-            imageObserver.observe(img);
-        }
-    });
-}
-
-// ========== 渲染函數 ==========
-function renderPhotoGrid(photos) {
-    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
-    let html = '<div class="photo-grid">';
-    photos.forEach(photo => {
-        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
-        const fullDate = formatFullDateTime(photo.time);
-        const likes = photo.likes || 0;
-        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        
-        // 使用後端提供的縮圖網址，如果沒有就用原始網址
-        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
-        
-        html += `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img src="${imgSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
-                <div class="photo-overlay">
-                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
-                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">❤️ ${likes}</div>
-                </div>
-            </div>
-        </div>`;
-    });
-    html += '</div>';
-    return html;
-}
-
-function appendPhotoGridOptimized(photos) {
-    const grid = document.querySelector('.photo-grid');
-    if (!grid) return;
-    
-    const fragment = document.createDocumentFragment();
-    const tempDiv = document.createElement('div');
-    
-    let html = '';
-    photos.forEach(photo => {
-        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
-        const fullDate = formatFullDateTime(photo.time);
-        const likes = photo.likes || 0;
-        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        
-        // 使用後端提供的縮圖網址
-        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
-        
-        html += `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img src="${imgSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
-                <div class="photo-overlay">
-                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
-                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">❤️ ${likes}</div>
-                </div>
-            </div>
-        </div>`;
-    });
-    
-    tempDiv.innerHTML = html;
-    while (tempDiv.firstChild) {
-        fragment.appendChild(tempDiv.firstChild);
-    }
-    
-    grid.appendChild(fragment);
-}
-function showLoadingIndicator() {
-    let indicator = document.getElementById('loadingIndicator');
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'loadingIndicator';
-        indicator.style.cssText = 'text-align:center;padding:20px;color:#999;';
-        indicator.innerHTML = '📸 載入中...';
-        mainContainer.appendChild(indicator);
-    }
-    indicator.style.display = 'block';
-}
-
-function hideLoadingIndicator() {
-    const indicator = document.getElementById('loadingIndicator');
-    if (indicator) indicator.style.display = 'none';
-}
-
-function showEndMessage() {
-    const existingMsg = document.querySelector('.end-message');
-    if (existingMsg) existingMsg.remove();
-    const endMsg = document.createElement('div');
-    endMsg.className = 'end-message';
-    endMsg.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:14px;';
-    endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
-    mainContainer.appendChild(endMsg);
-}
-
-// ========== 無限滾動監聽 ==========
+// ========== 滾動監聽 ==========
 function handleScroll() {
     if (currentMode !== 'timeline' && currentMode !== 'random') return;
     if (isLoading || !hasMore) return;
@@ -567,30 +481,252 @@ function handleScroll() {
     if (scrollTimeout) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(() => {
         const scrollPosition = window.innerHeight + window.scrollY;
-        const threshold = document.body.offsetHeight - 300;
-        
+        const threshold = document.body.offsetHeight - 500;
         if (scrollPosition >= threshold) {
-            if (currentMode === 'timeline') {
-                loadTimelinePhotos(false);
-            } else if (currentMode === 'random') {
-                loadRandomPhotos(false);
-            }
+            if (currentMode === 'timeline') loadTimelinePhotos(false);
+            else if (currentMode === 'random') loadRandomPhotos(false);
         }
     }, 100);
 }
 
 window.addEventListener('scroll', handleScroll);
 
-// ========== 下方保持原有的其他功能函數（不變）==========
-// ... 請將原本的 loadDateOptions, onYearChange, onMonthChange, 
-// setGroupFilter, setNavToDefault, setNavToAvatars, hideMainNavbar,
-// showTimeline, showRandom, showGroup, loadMemberAvatars, loadGroupPhotos,
-// showMyAlbum, showPersonalAlbum, editDisplayName, setAsAvatar,
-// showPhotoDetail, deleteCurrentPhoto, showConfirm, hideConfirm, executeDelete
-// 等函數保留在這裡 ...
+// ========== 導航函數 ==========
+function setNavToDefault() {
+    mainNavbar.classList.remove('hide');
+    document.getElementById('navRight').innerHTML = `
+        <button class="nav-btn" onclick="showTimeline()">🏠</button>
+        <button class="nav-btn" onclick="showRandom()">🎲</button>
+        <button class="nav-btn" onclick="showGroup()">👥</button>
+        <button class="nav-btn" onclick="showMyAlbum()">👤</button>
+    `;
+}
 
-// 由於篇幅限制，請保留你原本的這些函數，它們不需要修改
-// 只替換上面載入相關的部分即可
+function setNavToAvatars(html) {
+    mainNavbar.classList.remove('hide');
+    document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
+}
+
+function hideMainNavbar() { mainNavbar.classList.add('hide'); }
+
+// ========== 主要模式函數 ==========
+async function showTimeline() {
+    currentMode = 'timeline';
+    filterBar.style.display = 'none';
+    setNavToDefault();
+    mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
+    try {
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        currentPage = 1;
+        hasMore = true;
+        isLoading = false;
+        await loadTimelinePhotos(true);
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
+}
+
+async function showRandom() {
+    currentMode = 'random';
+    filterBar.style.display = 'none';
+    setNavToDefault();
+    mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
+    try {
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        currentPage = 1;
+        hasMore = true;
+        isLoading = false;
+        await loadRandomPhotos(true);
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
+}
+
+async function showGroup() {
+    currentMode = 'group';
+    filterBar.style.display = 'none';
+    await loadMemberAvatars();
+    await loadGroupPhotos();
+}
+
+async function loadMemberAvatars() {
+    try {
+        const users = await (await fetch('/api/users')).json();
+        allMembers = users;
+        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
+        let html = '';
+        sorted.forEach(user => {
+            const avatar = user.latestPhoto || 'https://via.placeholder.com/48';
+            const name = user.displayName || truncateUserId(user.userId);
+            const isCurrent = user.userId === currentUserId;
+            html += `<img class="member-avatar ${isCurrent ? 'current-user' : ''}" src="${avatar}" title="${name}" onclick="showPersonalAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
+        });
+        setNavToAvatars(html);
+    } catch(e) { console.error(e); }
+}
+
+async function loadGroupPhotos() {
+    mainContainer.innerHTML = '<div class="loading">👥 載入群組照片中...</div>';
+    try {
+        let photosData;
+        if (groupTagFilter === 'all') {
+            const res = await fetch('/api/photos?page=1&limit=500');
+            const result = await res.json();
+            photosData = result.photos || [];
+        } else {
+            photosData = await (await fetch(`/api/photos/tag/${groupTagFilter}`)).json();
+        }
+        
+        let photos = photosData;
+        if (groupYear !== 'all') {
+            photos = photos.filter(p => {
+                let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
+                if(!ym) return false;
+                if(groupYear !== ym.substring(0,4)) return false;
+                if(groupMonth !== 'all' && groupMonth !== ym.substring(5,7)) return false;
+                return true;
+            });
+        }
+        
+        for (let i = photos.length - 1; i > 0; i--) { 
+            const j = Math.floor(Math.random() * (i + 1)); 
+            [photos[i], photos[j]] = [photos[j], photos[i]]; 
+        }
+        
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        mainContainer.innerHTML = renderPhotoGrid(photos);
+        observeAllImages();
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
+}
+
+async function showMyAlbum() {
+    if(!currentUserId) { alert('請先從 LINE 個人連結登入'); return; }
+    await showPersonalAlbum(currentUserId);
+}
+
+async function showPersonalAlbum(userId) {
+    currentMode = 'personal';
+    filterBar.style.display = 'none';
+    hideMainNavbar();
+    mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
+    try {
+        let profile = { displayName: truncateUserId(userId), avatarUrl: null };
+        try {
+            const p = await (await fetch(`/api/user/profile/${userId}`)).json();
+            if(p) profile = { ...profile, ...p };
+        } catch(e) {}
+        const photos = await (await fetch(`/api/photos/user/${userId}?page=1&limit=500`)).json();
+        const photoList = photos.photos || [];
+        mainContainer.innerHTML = `
+            <div class="personal-nav">
+                <div class="personal-nav-row1">
+                    <div class="personal-nav-left">
+                        <button class="back-arrow" onclick="showGroup()">←</button>
+                        <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
+                        <span class="personal-name">${escapeHtml(profile.displayName)}</span>
+                        ${currentUserId === userId ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}')">✏️</button>` : ''}
+                    </div>
+                </div>
+            </div>
+            <div class="user-photo-grid">
+                ${photoList.map(photo => `
+                    <div class="user-photo-card" style="position:relative;">
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => showPersonalAlbum('${userId}'))">🗑️</button>` : ''}
+                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
+                            <img src="${photo.imageUrlThumb || photo.imageUrl}" loading="lazy">
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
+}
+
+async function editDisplayName(userId) {
+    const currentName = userNameMap.get(userId) || '';
+    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
+    if(newName && newName.trim()) {
+        try {
+            const res = await fetch('/api/user/displayname', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, displayName: newName.trim() }) 
+            });
+            const data = await res.json();
+            if(data.success) { 
+                alert('✅ 名稱已更新'); 
+                showPersonalAlbum(userId);
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) { alert('錯誤'); }
+    }
+}
+
+async function setAsAvatar(imgUrl) {
+    if(!currentUserId) return alert('請先登入');
+    await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
+    alert('✅ 已設為頭像！');
+}
+
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    modalImg.src = imgUrl;
+    const isOwner = currentUserId && userId === currentUserId;
+    const displayName = userNameMap.get(userId) || truncateUserId(userId);
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${msg?`<div>💬 ${escapeHtml(msg)}</div>`:''}${isOwner?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imgUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    photoModal.style.display = 'block';
+}
+
+function deleteCurrentPhoto(imgUrl, userId) {
+    photoModal.style.display = 'none';
+    showConfirm(imgUrl, userId, () => { location.reload(); });
+}
+
+function showConfirm(imgUrl, uid, cb) {
+    pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    overlay.style.display = 'flex';
+}
+
+function hideConfirm() {
+    confirmOverlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+}
+
+async function executeDelete() {
+    if(!pendingDelete.imageUrl) return;
+    const { imageUrl, userId, refreshCallback } = pendingDelete;
+    hideConfirm();
+    try {
+        const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
+        const data = await res.json();
+        if(data.success) { 
+            alert('✅ 照片已刪除'); 
+            if(refreshCallback) refreshCallback(); 
+            else location.reload(); 
+        }
+        else alert('刪除失敗');
+    } catch(e) { alert('刪除失敗'); }
+}
 
 // ========== 初始化 ==========
 document.querySelector('.close').onclick = () => photoModal.style.display = "none";
