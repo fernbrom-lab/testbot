@@ -309,11 +309,18 @@ app.post('/webhook', async (req, res) => {
 
 // ========== 照片牆 API ==========
 
+// 修改 /api/photos 端點，加入分頁參數
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
+    // 加入分頁參數，預設每頁 20 筆
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    
     const rows = await photosSheet.getRows();
     const photos = [];
+    
     for (const row of rows) {
       const userId = row.get('使用者ID') || '';
       const imageUrl = row.get('圖片URL') || '';
@@ -332,17 +339,38 @@ app.get('/api/photos', async (req, res) => {
         likes: parseInt(row.get('按讚數')) || 0
       });
     }
-    photos.reverse();
-    res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+    
+    // 依時間倒序排列
+    photos.sort((a, b) => new Date(b.time) - new Date(a.time));
+    
+    // 分頁處理
+    const total = photos.length;
+    const paginatedPhotos = photos.slice(offset, offset + limit);
+    
+    res.json({
+      photos: paginatedPhotos,
+      total: total,
+      page: page,
+      totalPages: Math.ceil(total / limit),
+      hasMore: offset + limit < total
+    });
+  } catch (error) { 
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
+// 同時修改 /api/photos/user/:userId 端點
 app.get('/api/photos/user/:userId', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
     const targetUserId = req.params.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    
     const rows = await photosSheet.getRows();
     const photos = [];
+    
     for (const row of rows) {
       const userId = row.get('使用者ID') || '';
       const imageUrl = row.get('圖片URL') || '';
@@ -361,11 +389,22 @@ app.get('/api/photos/user/:userId', async (req, res) => {
         likes: parseInt(row.get('按讚數')) || 0
       });
     }
-    photos.sort((a,b) => new Date(b.time) - new Date(a.time));
-    res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+    
+    photos.sort((a, b) => new Date(b.time) - new Date(a.time));
+    const total = photos.length;
+    const paginatedPhotos = photos.slice(offset, offset + limit);
+    
+    res.json({
+      photos: paginatedPhotos,
+      total: total,
+      page: page,
+      totalPages: Math.ceil(total / limit),
+      hasMore: offset + limit < total
+    });
+  } catch (error) { 
+    res.status(500).json({ error: error.message }); 
+  }
 });
-
 app.get('/api/photos/tag/:tag', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
