@@ -621,7 +621,58 @@ app.delete('/api/photo', async (req, res) => {
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
-
+// ========== 隨機照片 API（支援分頁）==========
+// 注意：每次請求的隨機順序會不同，這是正常的
+app.get('/api/photos/random', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.json([]);
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    
+    const rows = await photosSheet.getRows();
+    const photos = [];
+    
+    for (const row of rows) {
+      const userId = row.get('使用者ID') || '';
+      const imageUrl = row.get('圖片URL') || '';
+      if (userId === 'test_user') continue;
+      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      const time = row.get('時間') || '';
+      let yearMonth = row.get('年月') || '';
+      if (!yearMonth && time) yearMonth = time.substring(0, 7);
+      photos.push({
+        time: time,
+        userId,
+        imageUrl,
+        message: row.get('原始訊息') || '',
+        tag: row.get('標籤') || '',
+        yearMonth: yearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
+      });
+    }
+    
+    // Fisher-Yates 隨機演算法 - 打亂整個陣列
+    for (let i = photos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [photos[i], photos[j]] = [photos[j], photos[i]];
+    }
+    
+    const total = photos.length;
+    const paginatedPhotos = photos.slice(offset, offset + limit);
+    
+    res.json({
+      photos: paginatedPhotos,
+      total: total,
+      page: page,
+      totalPages: Math.ceil(total / limit),
+      hasMore: offset + limit < total
+    });
+  } catch (error) { 
+    console.error('❌ 隨機照片API錯誤:', error.message);
+    res.status(500).json({ error: error.message }); 
+  }
+});
 // ========== 使用者個人資料 API ==========
 app.get('/api/user/profile/:userId', async (req, res) => {
   if (!googleSheetReady || !settingsSheet) return res.status(503).json({ error: '服務未就緒' });
