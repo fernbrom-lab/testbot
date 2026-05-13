@@ -187,8 +187,8 @@
             <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
             <button class="confirm-btn confirm" id="confirmDeleteBtn">刪除</button>
         </div>
-    </div>
-<<script>
+    </div></div>
+<script>
 // ========== 功能開關 ==========
 const FEATURES = {
     ENABLE_LIKE_BUTTON: false,
@@ -215,11 +215,10 @@ let currentPersonalMode = 'photos';
 let currentMessages = [];
 let currentPhotosData = [];
 
-// 分頁相關變數
+// 分頁變數
 let currentPage = 1;
 let isLoading = false;
 let hasMore = true;
-let currentPersonalUserIdForPaging = null;
 
 const urlUserId = new URLSearchParams(window.location.search).get('userId');
 if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
@@ -245,60 +244,96 @@ function formatTimeAgo(isoString) {
 function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
 
-// ========== 照片牆主要載入函數（支援分頁）==========
-async function loadPhotos(reset = true) {
+// ========== 照片牆載入（timeline 分頁）==========
+async function loadTimelinePhotos(reset = true) {
     if (isLoading) return;
     if (reset) {
         currentPage = 1;
         hasMore = true;
-        currentPersonalUserIdForPaging = null;
+        const existingGrid = document.querySelector('.photo-grid');
+        if (existingGrid) existingGrid.remove();
+        const existingEndMsg = document.querySelector('.end-message');
+        if (existingEndMsg) existingEndMsg.remove();
     }
     if (!hasMore && !reset) return;
     
     isLoading = true;
-    const grid = document.getElementById('photoGrid');
+    showLoadingIndicator();
     
     try {
-        let url;
-        if (currentPersonalUserIdForPaging) {
-            url = `/api/photos/user/${currentPersonalUserIdForPaging}?page=${currentPage}&limit=20`;
-        } else {
-            url = `/api/photos?page=${currentPage}&limit=20`;
-        }
-        
+        const url = `/api/photos?page=${currentPage}&limit=20`;
         const response = await fetch(url);
         const result = await response.json();
         
-        const photos = result.photos || result;
-        hasMore = result.hasMore !== undefined ? result.hasMore : (photos.length === 20);
+        const photos = result.photos || [];
+        hasMore = result.hasMore || false;
         
         if (reset) {
-            if (grid) grid.innerHTML = '';
-            const photoHtml = renderPhotoGrid(photos);
-            if (grid) grid.innerHTML = photoHtml;
+            mainContainer.innerHTML = renderPhotoGrid(photos);
         } else {
-            // 追加照片（需要實作 appendPhotoGrid）
             appendPhotoGrid(photos);
         }
         
-        if (!hasMore && reset && grid) {
-            const endMsg = document.createElement('div');
-            endMsg.className = 'end-message';
-            endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
-            grid.after(endMsg);
+        if (!hasMore) {
+            showEndMessage();
         }
         
         currentPage++;
     } catch (error) {
-        console.error('載入照片失敗:', error);
-        if (reset && grid) grid.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+        console.error('載入失敗:', error);
+        if (reset) mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     } finally {
         isLoading = false;
+        hideLoadingIndicator();
     }
 }
 
+// ========== 隨機照片載入（random 分頁）==========
+async function loadRandomPhotos(reset = true) {
+    if (isLoading) return;
+    if (reset) {
+        currentPage = 1;
+        hasMore = true;
+        const existingGrid = document.querySelector('.photo-grid');
+        if (existingGrid) existingGrid.remove();
+        const existingEndMsg = document.querySelector('.end-message');
+        if (existingEndMsg) existingEndMsg.remove();
+    }
+    if (!hasMore && !reset) return;
+    
+    isLoading = true;
+    showLoadingIndicator();
+    
+    try {
+        const url = `/api/photos/random?page=${currentPage}&limit=20`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        const photos = result.photos || [];
+        hasMore = result.hasMore || false;
+        
+        if (reset) {
+            mainContainer.innerHTML = renderPhotoGrid(photos);
+        } else {
+            appendPhotoGrid(photos);
+        }
+        
+        if (!hasMore) {
+            showEndMessage();
+        }
+        
+        currentPage++;
+    } catch (error) {
+        console.error('載入失敗:', error);
+        if (reset) mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    } finally {
+        isLoading = false;
+        hideLoadingIndicator();
+    }
+}
+
+// ========== 渲染函數 ==========
 function renderPhotoGrid(photos) {
     if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
     let html = '<div class="photo-grid">';
@@ -306,19 +341,14 @@ function renderPhotoGrid(photos) {
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         const fullDate = formatFullDateTime(photo.time);
         const likes = photo.likes || 0;
-        const likeId = 'like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
                 <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
                 <div class="photo-overlay">
                     <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
                     ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">
-                        ${FEATURES.ENABLE_LIKE_BUTTON ? 
-                            `<button class="like-photo-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')" style="background:none; border:none; color:#ff4444; cursor:pointer;">❤️ <span id="${likeId}">${likes}</span></button>` :
-                            `<span style="color:#ff4444;">❤️ ${likes}</span>`
-                        }
-                    </div>
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
                 </div>
             </div>
         </div>`;
@@ -330,23 +360,19 @@ function renderPhotoGrid(photos) {
 function appendPhotoGrid(photos) {
     const grid = document.querySelector('.photo-grid');
     if (!grid) return;
+    
     photos.forEach(photo => {
         const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
         const fullDate = formatFullDateTime(photo.time);
         const likes = photo.likes || 0;
-        const likeId = 'like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const cardHtml = `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
                 <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
                 <div class="photo-overlay">
                     <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
                     ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">
-                        ${FEATURES.ENABLE_LIKE_BUTTON ? 
-                            `<button class="like-photo-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')" style="background:none; border:none; color:#ff4444; cursor:pointer;">❤️ <span id="${likeId}">${likes}</span></button>` :
-                            `<span style="color:#ff4444;">❤️ ${likes}</span>`
-                        }
-                    </div>
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
                 </div>
             </div>
         </div>`;
@@ -354,26 +380,57 @@ function appendPhotoGrid(photos) {
     });
 }
 
-// 無限滾動監聽
+function showLoadingIndicator() {
+    let indicator = document.getElementById('loadingIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'loadingIndicator';
+        indicator.style.cssText = 'text-align:center;padding:20px;color:#999;';
+        indicator.innerHTML = '📸 載入中...';
+        mainContainer.appendChild(indicator);
+    }
+    indicator.style.display = 'block';
+}
+
+function hideLoadingIndicator() {
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) indicator.style.display = 'none';
+}
+
+function showEndMessage() {
+    const existingMsg = document.querySelector('.end-message');
+    if (existingMsg) existingMsg.remove();
+    const endMsg = document.createElement('div');
+    endMsg.className = 'end-message';
+    endMsg.style.cssText = 'text-align:center;padding:20px;color:#999;';
+    endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
+    mainContainer.appendChild(endMsg);
+}
+
+// ========== 無限滾動監聽 ==========
 window.addEventListener('scroll', () => {
-    if (isLoading || !hasMore) return;
-    const scrollPosition = window.innerHeight + window.scrollY;
-    const threshold = document.body.offsetHeight - 500;
-    if (scrollPosition >= threshold) {
-        loadPhotos(false);
+    if (currentMode === 'timeline') {
+        if (isLoading || !hasMore) return;
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const threshold = document.body.offsetHeight - 500;
+        if (scrollPosition >= threshold) {
+            loadTimelinePhotos(false);
+        }
+    } else if (currentMode === 'random') {
+        if (isLoading || !hasMore) return;
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const threshold = document.body.offsetHeight - 500;
+        if (scrollPosition >= threshold) {
+            loadRandomPhotos(false);
+        }
     }
 });
 
-// ========== 其他原有函數 ==========
-async function likePhoto(imgUrl, spanId) {
-    if(!currentUserId) return alert('請登入');
-    const res = await fetch('/api/photo/like', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl:imgUrl }) });
-    const data = await res.json();
-    if(data.success && spanId) document.getElementById(spanId).textContent = data.likes;
-}
-
+// ========== 其他功能函數 ==========
 async function loadDateOptions() {
-    const photos = await (await fetch('/api/photos')).json();
+    const res = await fetch('/api/photos?page=1&limit=999');
+    const result = await res.json();
+    const photos = result.photos || [];
     const years = new Set(), monthsMap = new Map();
     photos.forEach(p => {
         let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
@@ -422,6 +479,7 @@ function setGroupFilter(tag) {
 function setNavToDefault() {
     mainNavbar.classList.remove('hide');
     document.getElementById('navRight').innerHTML = `
+        <button class="nav-btn" onclick="showTimeline()">🏠</button>
         <button class="nav-btn" onclick="showRandom()">🎲</button>
         <button class="nav-btn" onclick="showGroup()">👥</button>
         <button class="nav-btn" onclick="showMyAlbum()">👤</button>
@@ -437,7 +495,6 @@ function hideMainNavbar() { mainNavbar.classList.add('hide'); }
 
 async function showTimeline() {
     currentMode = 'timeline';
-    currentPersonalUserIdForPaging = null;
     filterBar.style.display = 'none';
     setNavToDefault();
     mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
@@ -445,17 +502,18 @@ async function showTimeline() {
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        // 重置分頁並載入
         currentPage = 1;
         hasMore = true;
         isLoading = false;
-        await loadPhotos(true);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+        await loadTimelinePhotos(true);
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
 async function showRandom() {
     currentMode = 'random';
-    currentPersonalUserIdForPaging = null;
     filterBar.style.display = 'none';
     setNavToDefault();
     mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
@@ -463,15 +521,18 @@ async function showRandom() {
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        let photos = await (await fetch('/api/photos')).json();
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
-        mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+        currentPage = 1;
+        hasMore = true;
+        isLoading = false;
+        await loadRandomPhotos(true);
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
 async function showGroup() {
     currentMode = 'group';
-    currentPersonalUserIdForPaging = null;
     if (FEATURES.ENABLE_FILTER_BAR) filterBar.style.display = 'flex';
     else filterBar.style.display = 'none';
     await loadMemberAvatars();
@@ -495,9 +556,20 @@ async function loadMemberAvatars() {
 }
 
 async function loadGroupPhotos() {
-    mainContainer.innerHTML = '<div class="loading">🎲 載入群組照片中...</div>';
+    mainContainer.innerHTML = '<div class="loading">👥 載入群組照片中...</div>';
     try {
-        let photos = await (await fetch(groupTagFilter === 'all' ? '/api/photos' : `/api/photos/tag/${groupTagFilter}`)).json();
+        // 群組模式：一次載入較多照片（因為有過濾需求）
+        let photosData;
+        if (groupTagFilter === 'all') {
+            const res = await fetch('/api/photos?page=1&limit=500');
+            const result = await res.json();
+            photosData = result.photos || [];
+        } else {
+            photosData = await (await fetch(`/api/photos/tag/${groupTagFilter}`)).json();
+        }
+        
+        let photos = photosData;
+        
         if (groupYear !== 'all') {
             photos = photos.filter(p => {
                 let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
@@ -507,46 +579,20 @@ async function loadGroupPhotos() {
                 return true;
             });
         }
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
+        
+        for (let i = photos.length - 1; i > 0; i--) { 
+            const j = Math.floor(Math.random() * (i + 1)); 
+            [photos[i], photos[j]] = [photos[j], photos[i]]; 
+        }
+        
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
         mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-
-async function loadMessages(userId) {
-    try {
-        const res = await fetch(`/api/messages/${userId}`);
-        currentMessages = await res.json();
-    } catch(e) { currentMessages = []; }
-}
-
-async function postMessage(targetUserId, content, photoUrl = null, photoTime = null) {
-    const res = await fetch('/api/messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId, senderId: currentUserId, content, photoUrl, photoTime })
-    });
-    return await res.json();
-}
-
-async function likeMessageById(messageId) {
-    const res = await fetch('/api/messages/like', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ messageId }) });
-    return await res.json();
-}
-
-async function deleteMessageById(messageId, refreshCallback) {
-    const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`, { method:'DELETE' });
-    const data = await res.json();
-    if(data.success && refreshCallback) refreshCallback();
-}
-
-async function replyToMessage(parentMessageId, targetUserId, content) {
-    const res = await fetch('/api/messages/reply', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parentMessageId, targetUserId, senderId: currentUserId, content })
-    });
-    return await res.json();
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
 async function showMyAlbum() {
@@ -555,37 +601,127 @@ async function showMyAlbum() {
 }
 
 async function showPersonalAlbum(userId) {
-    currentPersonalUserId = userId;
-    currentPersonalMode = 'photos';
     currentMode = 'personal';
     filterBar.style.display = 'none';
     hideMainNavbar();
     mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
     try {
-        let profile = { displayName: truncateUserId(userId), avatarUrl: null, bio: '', ig: '', fb: '' };
+        let profile = { displayName: truncateUserId(userId), avatarUrl: null };
         try {
             const p = await (await fetch(`/api/user/profile/${userId}`)).json();
             if(p) profile = { ...profile, ...p };
         } catch(e) {}
-        if (!profile.avatarUrl) {
-            const photos = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
-            if(photos && photos.length>0) profile.avatarUrl = photos[0].imageUrl;
-        }
-        currentPhotosData = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
-        await loadMessages(userId);
-        renderPersonalPage(profile, userId);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+        const photos = await (await fetch(`/api/photos/user/${userId}?page=1&limit=500`)).json();
+        const photoList = photos.photos || [];
+        mainContainer.innerHTML = `
+            <div class="personal-nav">
+                <div class="personal-nav-row1">
+                    <div class="personal-nav-left">
+                        <button class="back-arrow" onclick="showGroup()">←</button>
+                        <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
+                        <span class="personal-name">${escapeHtml(profile.displayName)}</span>
+                        ${currentUserId === userId ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}')">✏️</button>` : ''}
+                    </div>
+                </div>
+            </div>
+            <div class="user-photo-grid">
+                ${photoList.map(photo => `
+                    <div class="user-photo-card" style="position:relative;">
+                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => showPersonalAlbum('${userId}'))">🗑️</button>` : ''}
+                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
+                            <img src="${photo.imageUrl}" loading="lazy">
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
-// 此處繼續保留原有的 renderPersonalPage、showPhotoDetail、deleteCurrentPhoto、showConfirm、executeDelete 等函數
-// （因篇幅限制，請保留你原本的這些函數，它們是正確的）
+async function editDisplayName(userId) {
+    const currentName = userNameMap.get(userId) || '';
+    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
+    if(newName && newName.trim()) {
+        try {
+            const res = await fetch('/api/user/displayname', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, displayName: newName.trim() }) 
+            });
+            const data = await res.json();
+            if(data.success) { 
+                alert('✅ 名稱已更新'); 
+                showPersonalAlbum(userId);
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) { 
+            alert('錯誤');
+        }
+    }
+}
 
-// 初始化
+async function setAsAvatar(imgUrl) {
+    if(!currentUserId) return alert('請先登入');
+    await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
+    alert('✅ 已設為頭像！');
+}
+
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    modalImg.src = imgUrl;
+    const isOwner = currentUserId && userId === currentUserId;
+    const displayName = userNameMap.get(userId) || truncateUserId(userId);
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${msg?`<div>💬 ${msg}</div>`:''}${isOwner?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imgUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    photoModal.style.display = 'block';
+}
+
+function deleteCurrentPhoto(imgUrl, userId) {
+    photoModal.style.display = 'none';
+    showConfirm(imgUrl, userId, () => { location.reload(); });
+}
+
+function showConfirm(imgUrl, uid, cb) {
+    pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    overlay.style.display = 'flex';
+}
+
+function hideConfirm() {
+    confirmOverlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+}
+
+async function executeDelete() {
+    if(!pendingDelete.imageUrl) return;
+    const { imageUrl, userId, refreshCallback } = pendingDelete;
+    hideConfirm();
+    try {
+        const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
+        const data = await res.json();
+        if(data.success) { 
+            alert('✅ 照片已刪除'); 
+            if(refreshCallback) refreshCallback(); 
+            else location.reload(); 
+        }
+        else alert('刪除失敗');
+    } catch(e) { alert('刪除失敗'); }
+}
+
+// ========== 初始化 ==========
 document.querySelector('.close').onclick = () => photoModal.style.display = "none";
 photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
+window.onscroll = () => { const btn = document.querySelector('.back-to-top'); if(btn) btn.style.display = window.scrollY > 300 ? 'block' : 'none'; };
+
 loadDateOptions();
 showTimeline();
 </script>
-
 </body>
 </html>
