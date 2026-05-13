@@ -219,6 +219,7 @@ let currentPhotosData = [];
 let currentPage = 1;
 let isLoading = false;
 let hasMore = true;
+let scrollTimeout = null;  // 滾動防抖
 
 const urlUserId = new URLSearchParams(window.location.search).get('userId');
 if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
@@ -245,49 +246,12 @@ function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) re
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-// ========== 更新載入更多按鈕 ==========
-function updateLoadMoreButton() {
-    // 移除舊按鈕
-    const oldBtn = document.getElementById('loadMoreBtn');
-    if (oldBtn) oldBtn.remove();
-    
-    // 如果還有更多照片，加入按鈕
-    if (hasMore) {
-        const loadMoreBtn = document.createElement('div');
-        loadMoreBtn.id = 'loadMoreBtn';
-        loadMoreBtn.style.cssText = 'text-align:center;padding:20px;margin:10px 0 30px;';
-        loadMoreBtn.innerHTML = `<button onclick="loadMorePhotos()" style="background:#667eea;color:white;border:none;padding:12px 30px;border-radius:30px;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.1);">📸 載入更多</button>`;
-        mainContainer.appendChild(loadMoreBtn);
-    } else {
-        // 顯示結束訊息（避免重複）
-        const existingMsg = document.querySelector('.end-message');
-        if (!existingMsg) {
-            const endMsg = document.createElement('div');
-            endMsg.className = 'end-message';
-            endMsg.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:14px;';
-            endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
-            mainContainer.appendChild(endMsg);
-        }
-    }
-}
-
-// ========== 載入更多按鈕點擊處理 ==========
-function loadMorePhotos() {
-    if (currentMode === 'timeline') {
-        loadTimelinePhotos(false);
-    } else if (currentMode === 'random') {
-        loadRandomPhotos(false);
-    }
-}
-
 // ========== 照片牆載入（timeline 分頁）==========
 async function loadTimelinePhotos(reset = true) {
     if (isLoading) return;
     if (reset) {
         currentPage = 1;
         hasMore = true;
-        const existingLoadBtn = document.getElementById('loadMoreBtn');
-        if (existingLoadBtn) existingLoadBtn.remove();
         const existingEndMsg = document.querySelector('.end-message');
         if (existingEndMsg) existingEndMsg.remove();
     }
@@ -297,7 +261,6 @@ async function loadTimelinePhotos(reset = true) {
     showLoadingIndicator();
     
     try {
-        // 手機版每頁 12 張，減少瀑布流重排負擔
         const limit = window.innerWidth <= 768 ? 12 : 20;
         const url = `/api/photos?page=${currentPage}&limit=${limit}`;
         const response = await fetch(url);
@@ -309,11 +272,16 @@ async function loadTimelinePhotos(reset = true) {
         if (reset) {
             mainContainer.innerHTML = renderPhotoGrid(photos);
         } else {
-            appendPhotoGrid(photos);
+            // 使用優化方式追加照片（避免瀑布流錯亂）
+            appendPhotoGridOptimized(photos);
         }
         
         hideLoadingIndicator();
-        updateLoadMoreButton();
+        
+        // 如果沒有更多照片，顯示結束訊息
+        if (!hasMore) {
+            showEndMessage();
+        }
         
         currentPage++;
     } catch (error) {
@@ -331,8 +299,6 @@ async function loadRandomPhotos(reset = true) {
     if (reset) {
         currentPage = 1;
         hasMore = true;
-        const existingLoadBtn = document.getElementById('loadMoreBtn');
-        if (existingLoadBtn) existingLoadBtn.remove();
         const existingEndMsg = document.querySelector('.end-message');
         if (existingEndMsg) existingEndMsg.remove();
     }
@@ -353,11 +319,14 @@ async function loadRandomPhotos(reset = true) {
         if (reset) {
             mainContainer.innerHTML = renderPhotoGrid(photos);
         } else {
-            appendPhotoGrid(photos);
+            appendPhotoGridOptimized(photos);
         }
         
         hideLoadingIndicator();
-        updateLoadMoreButton();
+        
+        if (!hasMore) {
+            showEndMessage();
+        }
         
         currentPage++;
     } catch (error) {
@@ -367,6 +336,41 @@ async function loadRandomPhotos(reset = true) {
     } finally {
         isLoading = false;
     }
+}
+
+// ========== 優化版追加照片（解決瀑布流錯亂）==========
+function appendPhotoGridOptimized(photos) {
+    const grid = document.querySelector('.photo-grid');
+    if (!grid) return;
+    
+    // 方法：先建立 DocumentFragment 批次插入，減少重排次數
+    const fragment = document.createDocumentFragment();
+    const tempDiv = document.createElement('div');
+    
+    let html = '';
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
+                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <div class="photo-overlay">
+                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
+                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    tempDiv.innerHTML = html;
+    while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+    }
+    
+    grid.appendChild(fragment);
 }
 
 // ========== 渲染函數 ==========
@@ -393,29 +397,6 @@ function renderPhotoGrid(photos) {
     return html;
 }
 
-function appendPhotoGrid(photos) {
-    const grid = document.querySelector('.photo-grid');
-    if (!grid) return;
-    
-    photos.forEach(photo => {
-        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
-        const fullDate = formatFullDateTime(photo.time);
-        const likes = photo.likes || 0;
-        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        const cardHtml = `<div class="photo-card" data-url="${photo.imageUrl}">
-            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
-                <div class="photo-overlay">
-                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
-                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
-                    <div style="margin-top:5px;">❤️ ${likes}</div>
-                </div>
-            </div>
-        </div>`;
-        grid.insertAdjacentHTML('beforeend', cardHtml);
-    });
-}
-
 function showLoadingIndicator() {
     let indicator = document.getElementById('loadingIndicator');
     if (!indicator) {
@@ -432,6 +413,44 @@ function hideLoadingIndicator() {
     const indicator = document.getElementById('loadingIndicator');
     if (indicator) indicator.style.display = 'none';
 }
+
+function showEndMessage() {
+    const existingMsg = document.querySelector('.end-message');
+    if (existingMsg) existingMsg.remove();
+    const endMsg = document.createElement('div');
+    endMsg.className = 'end-message';
+    endMsg.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:14px;';
+    endMsg.innerHTML = '✨ 已經是最新照片囉 ✨';
+    mainContainer.appendChild(endMsg);
+}
+
+// ========== 無限滾動監聽（優化版）==========
+function handleScroll() {
+    // 只在 timeline 或 random 模式觸發
+    if (currentMode !== 'timeline' && currentMode !== 'random') return;
+    if (isLoading || !hasMore) return;
+    
+    // 防抖：避免頻繁觸發
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const threshold = document.body.offsetHeight - 300; // 距離底部 300px 觸發
+        
+        if (scrollPosition >= threshold) {
+            if (currentMode === 'timeline') {
+                loadTimelinePhotos(false);
+            } else if (currentMode === 'random') {
+                loadRandomPhotos(false);
+            }
+        }
+    }, 100);
+}
+
+// 綁定滾動事件
+window.addEventListener('scroll', handleScroll);
+window.addEventListener('resize', () => {
+    // 視窗大小改變時，重新計算閾值（沒實際作用，只是確保事件觸發）
+});
 
 // ========== 其他功能函數 ==========
 async function loadDateOptions() {
