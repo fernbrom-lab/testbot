@@ -478,17 +478,12 @@ function renderPhotoGrid(photos) {
         const likes = photo.likes || 0;
         const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         
-        const thumbUrl = photo.imageUrlThumb || photo.imageUrl;
-        const highResUrl = photo.imageUrlMedium || photo.imageUrl;
+        // 使用後端提供的縮圖網址，如果沒有就用原始網址
+        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
         
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
             <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img class="lazy-img" 
-                     src="${thumbUrl}" 
-                     data-src="${highResUrl}"
-                     loading="lazy"
-                     alt="照片"
-                     style="width:100%;height:auto;display:block;">
+                <img src="${imgSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
                 <div class="photo-overlay">
                     <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
                     ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
@@ -501,6 +496,42 @@ function renderPhotoGrid(photos) {
     return html;
 }
 
+function appendPhotoGridOptimized(photos) {
+    const grid = document.querySelector('.photo-grid');
+    if (!grid) return;
+    
+    const fragment = document.createDocumentFragment();
+    const tempDiv = document.createElement('div');
+    
+    let html = '';
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        
+        // 使用後端提供的縮圖網址
+        const imgSrc = photo.imageUrlThumb || photo.imageUrl;
+        
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
+                <img src="${imgSrc}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <div class="photo-overlay">
+                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
+                    ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
+                    <div style="margin-top:5px;">❤️ ${likes}</div>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    tempDiv.innerHTML = html;
+    while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+    }
+    
+    grid.appendChild(fragment);
+}
 function showLoadingIndicator() {
     let indicator = document.getElementById('loadingIndicator');
     if (!indicator) {
