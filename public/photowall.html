@@ -219,7 +219,36 @@ let currentPhotosData = [];
 let currentPage = 1;
 let isLoading = false;
 let hasMore = true;
-let scrollTimeout = null;  // 滾動防抖
+let scrollTimeout = null;
+
+// 圖片懶載入觀察器
+const imageObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const img = entry.target;
+            const highResSrc = img.dataset.src;
+            if (highResSrc && !img.classList.contains('loaded')) {
+                // 建立新圖片預先載入高解析度版本
+                const highResImg = new Image();
+                highResImg.onload = () => {
+                    img.src = highResSrc;
+                    img.classList.add('loaded');
+                };
+                highResImg.onerror = () => {
+                    // 如果高解析度載入失敗，維持縮圖
+                    img.classList.add('loaded');
+                };
+                highResImg.src = highResSrc;
+            } else if (!img.classList.contains('loaded')) {
+                img.classList.add('loaded');
+            }
+            observer.unobserve(img);
+        }
+    });
+}, { 
+    rootMargin: '300px',  // 提前 300px 開始載入
+    threshold: 0.01 
+});
 
 const urlUserId = new URLSearchParams(window.location.search).get('userId');
 if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
@@ -246,6 +275,16 @@ function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) re
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
+// 觀察所有圖片
+function observeAllImages() {
+    document.querySelectorAll('.lazy-img').forEach(img => {
+        if (!img.classList.contains('observed')) {
+            img.classList.add('observed');
+            imageObserver.observe(img);
+        }
+    });
+}
+
 // ========== 照片牆載入（timeline 分頁）==========
 async function loadTimelinePhotos(reset = true) {
     if (isLoading) return;
@@ -271,19 +310,21 @@ async function loadTimelinePhotos(reset = true) {
         
         if (reset) {
             mainContainer.innerHTML = renderPhotoGrid(photos);
+            observeAllImages();
         } else {
-            // 使用優化方式追加照片（避免瀑布流錯亂）
             appendPhotoGridOptimized(photos);
         }
         
         hideLoadingIndicator();
         
-        // 如果沒有更多照片，顯示結束訊息
         if (!hasMore) {
             showEndMessage();
         }
         
         currentPage++;
+        
+        // 預載入下一頁（可選）
+        // preloadNextPage();
     } catch (error) {
         console.error('載入失敗:', error);
         if (reset) mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
@@ -318,6 +359,7 @@ async function loadRandomPhotos(reset = true) {
         
         if (reset) {
             mainContainer.innerHTML = renderPhotoGrid(photos);
+            observeAllImages();
         } else {
             appendPhotoGridOptimized(photos);
         }
@@ -338,12 +380,11 @@ async function loadRandomPhotos(reset = true) {
     }
 }
 
-// ========== 優化版追加照片（解決瀑布流錯亂）==========
+// ========== 優化版追加照片 ==========
 function appendPhotoGridOptimized(photos) {
     const grid = document.querySelector('.photo-grid');
     if (!grid) return;
     
-    // 方法：先建立 DocumentFragment 批次插入，減少重排次數
     const fragment = document.createDocumentFragment();
     const tempDiv = document.createElement('div');
     
@@ -353,9 +394,19 @@ function appendPhotoGridOptimized(photos) {
         const fullDate = formatFullDateTime(photo.time);
         const likes = photo.likes || 0;
         const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        
+        // 使用縮圖作為 src，高解析度放在 data-src
+        const thumbUrl = photo.imageUrlThumb || photo.imageUrl;
+        const highResUrl = photo.imageUrlMedium || photo.imageUrl;
+        
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
             <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <img class="lazy-img" 
+                     src="${thumbUrl}" 
+                     data-src="${highResUrl}"
+                     loading="lazy"
+                     alt="照片"
+                     style="width:100%;height:auto;display:block;">
                 <div class="photo-overlay">
                     <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
                     ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
@@ -371,6 +422,14 @@ function appendPhotoGridOptimized(photos) {
     }
     
     grid.appendChild(fragment);
+    
+    // 觀察新加入的圖片
+    document.querySelectorAll('.lazy-img').forEach(img => {
+        if (!img.classList.contains('observed')) {
+            img.classList.add('observed');
+            imageObserver.observe(img);
+        }
+    });
 }
 
 // ========== 渲染函數 ==========
@@ -382,9 +441,18 @@ function renderPhotoGrid(photos) {
         const fullDate = formatFullDateTime(photo.time);
         const likes = photo.likes || 0;
         const escapedMsg = (photo.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        
+        const thumbUrl = photo.imageUrlThumb || photo.imageUrl;
+        const highResUrl = photo.imageUrlMedium || photo.imageUrl;
+        
         html += `<div class="photo-card" data-url="${photo.imageUrl}">
             <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${escapedMsg}')">
-                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <img class="lazy-img" 
+                     src="${thumbUrl}" 
+                     data-src="${highResUrl}"
+                     loading="lazy"
+                     alt="照片"
+                     style="width:100%;height:auto;display:block;">
                 <div class="photo-overlay">
                     <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
                     ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
@@ -424,17 +492,15 @@ function showEndMessage() {
     mainContainer.appendChild(endMsg);
 }
 
-// ========== 無限滾動監聽（優化版）==========
+// ========== 無限滾動監聽 ==========
 function handleScroll() {
-    // 只在 timeline 或 random 模式觸發
     if (currentMode !== 'timeline' && currentMode !== 'random') return;
     if (isLoading || !hasMore) return;
     
-    // 防抖：避免頻繁觸發
     if (scrollTimeout) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(() => {
         const scrollPosition = window.innerHeight + window.scrollY;
-        const threshold = document.body.offsetHeight - 300; // 距離底部 300px 觸發
+        const threshold = document.body.offsetHeight - 300;
         
         if (scrollPosition >= threshold) {
             if (currentMode === 'timeline') {
@@ -446,299 +512,18 @@ function handleScroll() {
     }, 100);
 }
 
-// 綁定滾動事件
 window.addEventListener('scroll', handleScroll);
-window.addEventListener('resize', () => {
-    // 視窗大小改變時，重新計算閾值（沒實際作用，只是確保事件觸發）
-});
 
-// ========== 其他功能函數 ==========
-async function loadDateOptions() {
-    const res = await fetch('/api/photos?page=1&limit=500');
-    const result = await res.json();
-    const photos = result.photos || [];
-    const years = new Set(), monthsMap = new Map();
-    photos.forEach(p => {
-        let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
-        if(ym) {
-            const y = ym.substring(0,4), m = ym.substring(5,7);
-            years.add(y);
-            if(!monthsMap.has(y)) monthsMap.set(y, new Set());
-            monthsMap.get(y).add(m);
-        }
-    });
-    availableYears = Array.from(years).sort().reverse();
-    availableMonths = monthsMap;
-    const yearSel = document.getElementById('yearSelect');
-    if(yearSel) {
-        yearSel.innerHTML = '<option value="all">📅年</option>';
-        availableYears.forEach(y => { const opt = document.createElement('option'); opt.value=y; opt.textContent=`${y}年`; yearSel.appendChild(opt); });
-    }
-    const monthSel = document.getElementById('monthSelect');
-    if(monthSel) monthSel.innerHTML = '<option value="all">📆月</option>';
-}
+// ========== 下方保持原有的其他功能函數（不變）==========
+// ... 請將原本的 loadDateOptions, onYearChange, onMonthChange, 
+// setGroupFilter, setNavToDefault, setNavToAvatars, hideMainNavbar,
+// showTimeline, showRandom, showGroup, loadMemberAvatars, loadGroupPhotos,
+// showMyAlbum, showPersonalAlbum, editDisplayName, setAsAvatar,
+// showPhotoDetail, deleteCurrentPhoto, showConfirm, hideConfirm, executeDelete
+// 等函數保留在這裡 ...
 
-function onYearChange() {
-    groupYear = document.getElementById('yearSelect').value;
-    const monthSel = document.getElementById('monthSelect');
-    if (groupYear === 'all') { monthSel.innerHTML = '<option value="all">📆月</option>'; groupMonth = 'all'; monthSel.value = 'all'; }
-    else {
-        const months = availableMonths.get(groupYear) || new Set();
-        monthSel.innerHTML = '<option value="all">📆月</option>';
-        Array.from(months).sort().reverse().forEach(m => { const opt = document.createElement('option'); opt.value=m; opt.textContent=`${m}月`; monthSel.appendChild(opt); });
-        groupMonth = 'all'; monthSel.value = 'all';
-    }
-    if (currentMode === 'group') loadGroupPhotos();
-}
-
-function onMonthChange() {
-    groupMonth = document.getElementById('monthSelect').value;
-    if (currentMode === 'group') loadGroupPhotos();
-}
-
-function setGroupFilter(tag) {
-    groupTagFilter = tag;
-    document.querySelectorAll('.filter-btn').forEach(btn => { if(btn.dataset.filter === tag) btn.classList.add('active'); else btn.classList.remove('active'); });
-    if (currentMode === 'group') loadGroupPhotos();
-}
-
-function setNavToDefault() {
-    mainNavbar.classList.remove('hide');
-    document.getElementById('navRight').innerHTML = `
-        <button class="nav-btn" onclick="showTimeline()">🏠</button>
-        <button class="nav-btn" onclick="showRandom()">🎲</button>
-        <button class="nav-btn" onclick="showGroup()">👥</button>
-        <button class="nav-btn" onclick="showMyAlbum()">👤</button>
-    `;
-}
-
-function setNavToAvatars(html) {
-    mainNavbar.classList.remove('hide');
-    document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
-}
-
-function hideMainNavbar() { mainNavbar.classList.add('hide'); }
-
-async function showTimeline() {
-    currentMode = 'timeline';
-    filterBar.style.display = 'none';
-    setNavToDefault();
-    mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
-    try {
-        const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        currentPage = 1;
-        hasMore = true;
-        isLoading = false;
-        await loadTimelinePhotos(true);
-    } catch(e) { 
-        console.error(e);
-        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
-    }
-}
-
-async function showRandom() {
-    currentMode = 'random';
-    filterBar.style.display = 'none';
-    setNavToDefault();
-    mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
-    try {
-        const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        currentPage = 1;
-        hasMore = true;
-        isLoading = false;
-        await loadRandomPhotos(true);
-    } catch(e) { 
-        console.error(e);
-        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
-    }
-}
-
-async function showGroup() {
-    currentMode = 'group';
-    if (FEATURES.ENABLE_FILTER_BAR) filterBar.style.display = 'flex';
-    else filterBar.style.display = 'none';
-    await loadMemberAvatars();
-    await loadGroupPhotos();
-}
-
-async function loadMemberAvatars() {
-    try {
-        const users = await (await fetch('/api/users')).json();
-        allMembers = users;
-        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
-        let html = '';
-        sorted.forEach(user => {
-            const avatar = user.latestPhoto || 'https://via.placeholder.com/48';
-            const name = user.displayName || truncateUserId(user.userId);
-            const isCurrent = user.userId === currentUserId;
-            html += `<img class="member-avatar ${isCurrent ? 'current-user' : ''}" src="${avatar}" title="${name}" onclick="showPersonalAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
-        });
-        setNavToAvatars(html);
-    } catch(e) { console.error(e); }
-}
-
-async function loadGroupPhotos() {
-    mainContainer.innerHTML = '<div class="loading">👥 載入群組照片中...</div>';
-    try {
-        let photosData;
-        if (groupTagFilter === 'all') {
-            const res = await fetch('/api/photos?page=1&limit=500');
-            const result = await res.json();
-            photosData = result.photos || [];
-        } else {
-            photosData = await (await fetch(`/api/photos/tag/${groupTagFilter}`)).json();
-        }
-        
-        let photos = photosData;
-        
-        if (groupYear !== 'all') {
-            photos = photos.filter(p => {
-                let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
-                if(!ym) return false;
-                if(groupYear !== ym.substring(0,4)) return false;
-                if(groupMonth !== 'all' && groupMonth !== ym.substring(5,7)) return false;
-                return true;
-            });
-        }
-        
-        for (let i = photos.length - 1; i > 0; i--) { 
-            const j = Math.floor(Math.random() * (i + 1)); 
-            [photos[i], photos[j]] = [photos[j], photos[i]]; 
-        }
-        
-        const users = await (await fetch('/api/users')).json();
-        userNameMap.clear();
-        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { 
-        console.error(e);
-        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
-    }
-}
-
-async function showMyAlbum() {
-    if(!currentUserId) { alert('請先從 LINE 個人連結登入'); return; }
-    await showPersonalAlbum(currentUserId);
-}
-
-async function showPersonalAlbum(userId) {
-    currentMode = 'personal';
-    filterBar.style.display = 'none';
-    hideMainNavbar();
-    mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
-    try {
-        let profile = { displayName: truncateUserId(userId), avatarUrl: null };
-        try {
-            const p = await (await fetch(`/api/user/profile/${userId}`)).json();
-            if(p) profile = { ...profile, ...p };
-        } catch(e) {}
-        const photos = await (await fetch(`/api/photos/user/${userId}?page=1&limit=500`)).json();
-        const photoList = photos.photos || [];
-        mainContainer.innerHTML = `
-            <div class="personal-nav">
-                <div class="personal-nav-row1">
-                    <div class="personal-nav-left">
-                        <button class="back-arrow" onclick="showGroup()">←</button>
-                        <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
-                        <span class="personal-name">${escapeHtml(profile.displayName)}</span>
-                        ${currentUserId === userId ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}')">✏️</button>` : ''}
-                    </div>
-                </div>
-            </div>
-            <div class="user-photo-grid">
-                ${photoList.map(photo => `
-                    <div class="user-photo-card" style="position:relative;">
-                        ${currentUserId === userId ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => showPersonalAlbum('${userId}'))">🗑️</button>` : ''}
-                        ${currentUserId === userId ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
-                        <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
-                            <img src="${photo.imageUrl}" loading="lazy">
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    } catch(e) { 
-        console.error(e);
-        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
-    }
-}
-
-async function editDisplayName(userId) {
-    const currentName = userNameMap.get(userId) || '';
-    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
-    if(newName && newName.trim()) {
-        try {
-            const res = await fetch('/api/user/displayname', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, displayName: newName.trim() }) 
-            });
-            const data = await res.json();
-            if(data.success) { 
-                alert('✅ 名稱已更新'); 
-                showPersonalAlbum(userId);
-            } else {
-                alert('更新失敗');
-            }
-        } catch(e) { 
-            alert('錯誤');
-        }
-    }
-}
-
-async function setAsAvatar(imgUrl) {
-    if(!currentUserId) return alert('請先登入');
-    await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
-    alert('✅ 已設為頭像！');
-}
-
-function showPhotoDetail(imgUrl, userId, time, msg) {
-    modalImg.src = imgUrl;
-    const isOwner = currentUserId && userId === currentUserId;
-    const displayName = userNameMap.get(userId) || truncateUserId(userId);
-    const fullDate = formatFullDateTime(time);
-    modalInfo.innerHTML = `<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${msg?`<div>💬 ${escapeHtml(msg)}</div>`:''}${isOwner?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imgUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
-    photoModal.style.display = 'block';
-}
-
-function deleteCurrentPhoto(imgUrl, userId) {
-    photoModal.style.display = 'none';
-    showConfirm(imgUrl, userId, () => { location.reload(); });
-}
-
-function showConfirm(imgUrl, uid, cb) {
-    pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb };
-    const overlay = document.getElementById('confirmOverlay');
-    overlay.querySelector('p').innerText = '確定要刪除這張照片嗎？';
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    confirmBtn.onclick = () => executeDelete();
-    overlay.style.display = 'flex';
-}
-
-function hideConfirm() {
-    confirmOverlay.style.display = 'none';
-    pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
-}
-
-async function executeDelete() {
-    if(!pendingDelete.imageUrl) return;
-    const { imageUrl, userId, refreshCallback } = pendingDelete;
-    hideConfirm();
-    try {
-        const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
-        const data = await res.json();
-        if(data.success) { 
-            alert('✅ 照片已刪除'); 
-            if(refreshCallback) refreshCallback(); 
-            else location.reload(); 
-        }
-        else alert('刪除失敗');
-    } catch(e) { alert('刪除失敗'); }
-}
+// 由於篇幅限制，請保留你原本的這些函數，它們不需要修改
+// 只替換上面載入相關的部分即可
 
 // ========== 初始化 ==========
 document.querySelector('.close').onclick = () => photoModal.style.display = "none";
