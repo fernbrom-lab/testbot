@@ -153,6 +153,42 @@
         .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
         .confirm-btn.confirm { background:#ff4444; color:white; }
         .confirm-btn.cancel { background:#ddd; color:#333; }
+        /* 圖片懶載入動畫效果 */
+.lazy-img {
+    transition: filter 0.2s ease-out, opacity 0.3s ease;
+    filter: blur(4px);
+    opacity: 0.8;
+    background-color: #f0f0f0;
+}
+
+.lazy-img.loaded {
+    filter: blur(0);
+    opacity: 1;
+}
+
+/* 手機版降低模糊強度，減少視覺不適 */
+@media (max-width: 768px) {
+    .lazy-img {
+        filter: blur(2px);
+    }
+}
+
+/* 可選：圖片載入時的骨架屏效果 */
+.photo-card {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.photo-card img.loaded {
+    animation: none;
+    background: none;
+}
     </style>
 </head>
 <body>
