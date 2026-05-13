@@ -29,6 +29,21 @@ let messagesSheet = null;
 // 暫存照片說明文字
 let pendingCaption = {};
 
+// ========== 圖片優化輔助函數 ==========
+function getOptimizedImageUrl(originalUrl, width = 800, quality = 80) {
+  if (!originalUrl || !originalUrl.includes('cloudinary.com')) return originalUrl;
+  
+  // 將 Cloudinary 網址加上轉換參數
+  // 例如：https://res.cloudinary.com/xxx/image/upload/v123/linebot_photos/photo.jpg
+  // 變成：https://res.cloudinary.com/xxx/image/upload/w_800,q_80,f_auto/linebot_photos/photo.jpg
+  
+  const parts = originalUrl.split('/upload/');
+  if (parts.length !== 2) return originalUrl;
+  
+  // 加入寬度限制、品質壓縮、自動格式轉換（WebP/AVIF）
+  return `${parts[0]}/upload/w_${width},q_${quality},f_auto/${parts[1]}`;
+}
+
 // ========== Google Sheets 初始化 (完整版) ==========
 async function initGoogleSheets() {
   try {
@@ -309,11 +324,10 @@ app.post('/webhook', async (req, res) => {
 
 // ========== 照片牆 API ==========
 
-// 修改 /api/photos 端點，加入分頁參數
+// ========== 照片牆 API（修改版）==========
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
-    // 加入分頁參數，預設每頁 20 筆
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
@@ -329,10 +343,15 @@ app.get('/api/photos', async (req, res) => {
       const time = row.get('時間') || '';
       let yearMonth = row.get('年月') || '';
       if (!yearMonth && time) yearMonth = time.substring(0, 7);
+      
+      // 產生不同尺寸的圖片網址
+      const originalUrl = imageUrl;
       photos.push({
         time: time,
         userId,
-        imageUrl,
+        imageUrl: originalUrl,
+        imageUrlThumb: getOptimizedImageUrl(originalUrl, 400, 60),   // 縮圖：400px, 品質60%
+        imageUrlMedium: getOptimizedImageUrl(originalUrl, 800, 80),  // 中尺寸：800px, 品質80%
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
         yearMonth: yearMonth,
@@ -340,10 +359,8 @@ app.get('/api/photos', async (req, res) => {
       });
     }
     
-    // 依時間倒序排列
     photos.sort((a, b) => new Date(b.time) - new Date(a.time));
     
-    // 分頁處理
     const total = photos.length;
     const paginatedPhotos = photos.slice(offset, offset + limit);
     
@@ -359,7 +376,63 @@ app.get('/api/photos', async (req, res) => {
   }
 });
 
-// 同時修改 /api/photos/user/:userId 端點
+// ========== 隨機照片 API（修改版）==========
+app.get('/api/photos/random', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.json([]);
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    
+    const rows = await photosSheet.getRows();
+    const photos = [];
+    
+    for (const row of rows) {
+      const userId = row.get('使用者ID') || '';
+      const imageUrl = row.get('圖片URL') || '';
+      if (userId === 'test_user') continue;
+      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
+      const time = row.get('時間') || '';
+      let yearMonth = row.get('年月') || '';
+      if (!yearMonth && time) yearMonth = time.substring(0, 7);
+      
+      const originalUrl = imageUrl;
+      photos.push({
+        time: time,
+        userId,
+        imageUrl: originalUrl,
+        imageUrlThumb: getOptimizedImageUrl(originalUrl, 400, 60),
+        imageUrlMedium: getOptimizedImageUrl(originalUrl, 800, 80),
+        message: row.get('原始訊息') || '',
+        tag: row.get('標籤') || '',
+        yearMonth: yearMonth,
+        likes: parseInt(row.get('按讚數')) || 0
+      });
+    }
+    
+    // Fisher-Yates 隨機演算法
+    for (let i = photos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [photos[i], photos[j]] = [photos[j], photos[i]];
+    }
+    
+    const total = photos.length;
+    const paginatedPhotos = photos.slice(offset, offset + limit);
+    
+    res.json({
+      photos: paginatedPhotos,
+      total: total,
+      page: page,
+      totalPages: Math.ceil(total / limit),
+      hasMore: offset + limit < total
+    });
+  } catch (error) { 
+    console.error('❌ 隨機照片API錯誤:', error.message);
+    res.status(500).json({ error: error.message }); 
+  }
+});
+
+// ========== 個人相簿 API（修改版 - 支援圖片優化）==========
 app.get('/api/photos/user/:userId', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -379,10 +452,14 @@ app.get('/api/photos/user/:userId', async (req, res) => {
       const time = row.get('時間') || '';
       let yearMonth = row.get('年月') || '';
       if (!yearMonth && time) yearMonth = time.substring(0, 7);
+      
+      const originalUrl = imageUrl;
       photos.push({
         time: time,
         userId,
-        imageUrl,
+        imageUrl: originalUrl,
+        imageUrlThumb: getOptimizedImageUrl(originalUrl, 400, 60),
+        imageUrlMedium: getOptimizedImageUrl(originalUrl, 800, 80),
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
         yearMonth: yearMonth,
@@ -405,6 +482,8 @@ app.get('/api/photos/user/:userId', async (req, res) => {
     res.status(500).json({ error: error.message }); 
   }
 });
+
+// ========== 其他 API（保持原有）==========
 app.get('/api/photos/tag/:tag', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -417,10 +496,12 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
       const time = row.get('時間') || '';
       let yearMonth = row.get('年月') || '';
       if (!yearMonth && time) yearMonth = time.substring(0, 7);
+      const originalUrl = row.get('圖片URL') || '';
       photos.push({
         time: time,
         userId: row.get('使用者ID'),
-        imageUrl: row.get('圖片URL'),
+        imageUrl: originalUrl,
+        imageUrlThumb: getOptimizedImageUrl(originalUrl, 400, 60),
         message: row.get('原始訊息') || '',
         tag: rowTag,
         yearMonth: yearMonth,
@@ -443,10 +524,12 @@ app.get('/api/photos/date/:yearMonth', async (req, res) => {
       const time = row.get('時間') || '';
       if (!rowYearMonth && time) rowYearMonth = time.substring(0, 7);
       if (rowYearMonth !== yearMonth) continue;
+      const originalUrl = row.get('圖片URL') || '';
       photos.push({
         time: time,
         userId: row.get('使用者ID'),
-        imageUrl: row.get('圖片URL'),
+        imageUrl: originalUrl,
+        imageUrlThumb: getOptimizedImageUrl(originalUrl, 400, 60),
         message: row.get('原始訊息') || '',
         tag: row.get('標籤') || '',
         yearMonth: rowYearMonth,
@@ -621,58 +704,7 @@ app.delete('/api/photo', async (req, res) => {
     res.json({ success: true });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
-// ========== 隨機照片 API（支援分頁）==========
-// 注意：每次請求的隨機順序會不同，這是正常的
-app.get('/api/photos/random', async (req, res) => {
-  if (!googleSheetReady || !photosSheet) return res.json([]);
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = (page - 1) * limit;
-    
-    const rows = await photosSheet.getRows();
-    const photos = [];
-    
-    for (const row of rows) {
-      const userId = row.get('使用者ID') || '';
-      const imageUrl = row.get('圖片URL') || '';
-      if (userId === 'test_user') continue;
-      if (!imageUrl || imageUrl === 'https://test.com/test.jpg') continue;
-      const time = row.get('時間') || '';
-      let yearMonth = row.get('年月') || '';
-      if (!yearMonth && time) yearMonth = time.substring(0, 7);
-      photos.push({
-        time: time,
-        userId,
-        imageUrl,
-        message: row.get('原始訊息') || '',
-        tag: row.get('標籤') || '',
-        yearMonth: yearMonth,
-        likes: parseInt(row.get('按讚數')) || 0
-      });
-    }
-    
-    // Fisher-Yates 隨機演算法 - 打亂整個陣列
-    for (let i = photos.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [photos[i], photos[j]] = [photos[j], photos[i]];
-    }
-    
-    const total = photos.length;
-    const paginatedPhotos = photos.slice(offset, offset + limit);
-    
-    res.json({
-      photos: paginatedPhotos,
-      total: total,
-      page: page,
-      totalPages: Math.ceil(total / limit),
-      hasMore: offset + limit < total
-    });
-  } catch (error) { 
-    console.error('❌ 隨機照片API錯誤:', error.message);
-    res.status(500).json({ error: error.message }); 
-  }
-});
+
 // ========== 使用者個人資料 API ==========
 app.get('/api/user/profile/:userId', async (req, res) => {
   if (!googleSheetReady || !settingsSheet) return res.status(503).json({ error: '服務未就緒' });
