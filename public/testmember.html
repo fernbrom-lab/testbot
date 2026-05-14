@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google 登入 + 自訂會員資料庫</title>
+    <!-- Firebase SDK 必要模組 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js"
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>🏪 會員專區 (Google 登入)</h1>
+    <div id="login-status"></div>
+    <button id="google-login-btn" style="display:none">🔐 使用 Google 登入</button>
+    <button id="logout-btn" style="display:none">🚪 登出</button>
+    <div id="member-info" style="display:none; margin-top:20px; border:1px solid #ccc; padding:10px;">
+        <h3>會員資料</h3>
+        <p><strong>姓名：</strong> <span id="member-name"></span></p>
+        <p><strong>Email：</strong> <span id="member-email"></span></p>
+        <p><strong>會員等級：</strong> <span id="member-role"></span></p>
+        <p><strong>金幣數量：</strong> <span id="member-coins"></span></p>
+        <p><strong>註冊時間：</strong> <span id="member-created"></span></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+
+        // 🔴 請貼上你自己的 Firebase 設定 🔴
+        const firebaseConfig = {
+            apiKey: "你的 apiKey",
+            authDomain: "你的 authDomain",
+            projectId: "你的 projectId",
+            storageBucket: "你的 storageBucket",
+            messagingSenderId: "你的 messagingSenderId",
+            appId: "你的 appId"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        // DOM 元素
+        const loginStatus = document.getElementById("login-status");
+        const googleBtn = document.getElementById("google-login-btn");
+        const logoutBtn = document.getElementById("logout-btn");
+        const memberInfo = document.getElementById("member-info");
+
+        // 輔助函式：建立或更新會員資料 (這是你自訂的資料庫邏輯)
+        async function syncUserToDatabase(user) {
+            if (!user) return;
+
+            const userRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) {
+                // 第一次登入 -> 在資料庫建立會員記錄
+                await setDoc(userRef, {
+                    email: user.email,
+                    name: user.displayName,
+                    avatar: user.photoURL,
+                    role: "一般會員",      // ← 自訂欄位
+                    coins: 100,            // ← 自訂欄位
+                    createdAt: serverTimestamp()
+                });
+                console.log("✅ 已新增會員到 Firestore");
+            } else {
+                // 已存在 -> 可選擇更新上次登入時間，但保留 role/coins
+                console.log("📌 會員已存在，無需覆蓋自訂資料");
+            }
+
+            // 讀取最新的會員資料並顯示
+            const updatedSnap = await getDoc(userRef);
+            const memberData = updatedSnap.data();
+            displayMemberInfo(memberData);
+        }
+
+        function displayMemberInfo(data) {
+            memberInfo.style.display = "block";
+            document.getElementById("member-name").innerText = data.name || "無";
+            document.getElementById("member-email").innerText = data.email || "無";
+            document.getElementById("member-role").innerText = data.role || "無";
+            document.getElementById("member-coins").innerText = data.coins || 0;
+            document.getElementById("member-created").innerText = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : "剛剛註冊";
+        }
+
+        // 監聽登入狀態變化 (最核心的部分)
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // 已登入 Google
+                loginStatus.innerText = `✅ 歡迎，${user.displayName}`;
+                googleBtn.style.display = "none";
+                logoutBtn.style.display = "inline-block";
+                
+                // 重點：將 Google 帳號與你的資料庫同步
+                await syncUserToDatabase(user);
+            } else {
+                // 未登入
+                loginStatus.innerText = "🔒 請登入";
+                googleBtn.style.display = "inline-block";
+                logoutBtn.style.display = "none";
+                memberInfo.style.display = "none";
+            }
+        });
+
+        // Google 登入按鈕 (跳出彈窗)
+        googleBtn.onclick = async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                console.log("登入成功", result.user);
+            } catch (error) {
+                console.error("登入失敗", error);
+                alert("登入失敗：" + error.message);
+            }
+        };
+
+        // 登出按鈕
+        logoutBtn.onclick = async () => {
+            await signOut(auth);
+            console.log("已登出");
+        };
+    </script>
+</body>
+</html>
